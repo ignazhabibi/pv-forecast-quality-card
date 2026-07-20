@@ -1,13 +1,14 @@
 # PV Forecast Quality Card
 
-A Home Assistant custom-card bundle for comparing PV forecasts with actual production. It contains compact quality cards and an ECharts day-profile card, all designed for Sections dashboards.
+A Home Assistant custom-card bundle for comparing PV forecasts with actual production. It contains compact quality cards plus ECharts day-profile and long-term cards, all designed for Sections dashboards.
 
 ![Two independent PV forecast quality cards](docs/preview.svg)
 
-The bundle registers two card types:
+The bundle registers three card types:
 
 - `custom:pv-forecast-quality-card` for understandable quality metrics
 - `custom:pv-forecast-day-card` for today's actual power and one or two forecast profiles
+- `custom:pv-forecast-history-card` for the last 7–90 complete day-ahead days
 
 The quality card has two independent modes:
 
@@ -71,6 +72,34 @@ grid_options:
 ```
 
 Omit `forecast_2` for a single-provider day profile. The chart shows the integrations' currently reported forecasts; the quality cards remain the methodologically correct place to evaluate the frozen day-ahead snapshots.
+
+## Long-term ECharts comparison
+
+The history card reads permanent daily recorder statistics from the backend metric entities. It does not create or alter snapshots. The default yield view uses grouped, diverging bars: above the orange actual reference means too much energy was forecast, below it means too little. The power-profile view uses dashed 1.5 px lines with round points because the trend of daily MAE values is more legible that way.
+
+```yaml
+type: custom:pv-forecast-history-card
+title: Prognosequalität · 30 Tage
+days: 30
+day_offset: -1
+default_metric: energy
+actual_color: "#F59E0B"
+provider_1:
+  name: Solcast
+  color: "#22C55E"
+  mae_entity: sensor.pv_vergleich_solcast_mae_tag
+  energy_entity: sensor.pv_vergleich_solcast_energieabweichung_prozent_tag
+provider_2:
+  name: Helios Forecast
+  color: "#7C4DFF"
+  mae_entity: sensor.pv_vergleich_helios_mae_tag
+  energy_entity: sensor.pv_vergleich_helios_energieabweichung_prozent_tag
+grid_options:
+  columns: full
+  rows: auto
+```
+
+`day_offset: -1` assigns a statistic recorded shortly after midnight to the evaluated previous day. Use `0` when your daily metric entity records its value on the same calendar day. Omit `provider_2` for a single-provider history view. Until the first complete day is available, the card shows a compact empty state instead of sample data.
 
 ## Two-provider example
 
@@ -150,7 +179,7 @@ The quality card reports:
 
 It intentionally does not report `rows`, `min_rows`, or `max_rows`. Home Assistant therefore uses the card's natural content height. Users can still set `rows: auto` explicitly in dashboard configuration.
 
-The day card reports 12 columns with a six-column minimum and also relies on natural height. Use `columns: full` and `rows: auto` when placing it in a Sections dashboard.
+The day and history cards report 12 columns with a six-column minimum and also rely on natural height. Use `columns: full` and `rows: auto` when placing them in a Sections dashboard.
 
 ## Evaluation context
 

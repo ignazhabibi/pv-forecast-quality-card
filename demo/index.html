@@ -54,11 +54,13 @@
       }
 
       pv-forecast-quality-card,
-      pv-forecast-day-card {
+      pv-forecast-day-card,
+      pv-forecast-history-card {
         min-width: 0;
       }
 
-      pv-forecast-day-card {
+      pv-forecast-day-card,
+      pv-forecast-history-card {
         grid-column: 1 / -1;
       }
 
@@ -85,6 +87,7 @@
         <pv-forecast-quality-card id="power"></pv-forecast-quality-card>
         <pv-forecast-quality-card id="energy"></pv-forecast-quality-card>
         <pv-forecast-day-card id="day"></pv-forecast-day-card>
+        <pv-forecast-history-card id="history"></pv-forecast-history-card>
       </section>
     </main>
 
@@ -129,6 +132,17 @@
         return { s: String(envelope * cloud * 7600), a: {}, lu: date.getTime() / 1000 };
       }).filter((entry) => entry.lu * 1000 <= Date.now());
 
+      const dailyStatistic = (value, index) => {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - (29 - index));
+        return { start: start.getTime(), mean: value };
+      };
+      const solcastEnergyHistory = [12, 18, 7, 25, 31, 21, 14, -3, 9, 16, 28, 24, 19, 33, 11, 6, 17, 22, 27, 15, 8, -5, 13, 20, 26, 18, 10, 23, 21, 24.8].map(dailyStatistic);
+      const heliosEnergyHistory = [-4, 5, -2, 8, 18, 10, -1, -7, 13, 4, 7, 20, -5, 9, 1, -3, 21, 6, 8, 18, -2, -9, 3, 25, 6, 1, -14, 5, 0, -2.6].map(dailyStatistic);
+      const solcastMaeHistory = [1.18, 1.31, 0.92, 1.44, 1.62, 1.35, 1.08, 0.84, 1.02, 1.26, 1.51, 1.47, 1.22, 1.68, 1.04, 0.91, 1.19, 1.38, 1.49, 1.23, 0.96, 0.81, 1.11, 1.34, 1.53, 1.28, 1.01, 1.42, 1.37, 1.22].map(dailyStatistic);
+      const heliosMaeHistory = [0.88, 0.97, 0.74, 1.03, 1.21, 0.94, 0.79, 0.92, 1.09, 0.83, 0.98, 1.32, 0.86, 1.17, 0.72, 0.81, 1.26, 0.91, 1.02, 1.29, 0.76, 1.01, 0.82, 1.46, 0.95, 0.73, 1.17, 0.89, 0.78, 0.93].map(dailyStatistic);
+
       const hass = {
         locale: { language: "de-DE" },
         states: {
@@ -154,7 +168,17 @@
             forecast: helios,
           }),
         },
-        callWS: async () => ({ "sensor.pv_power": actualHistory }),
+        callWS: async (message) => {
+          if (message.type === "recorder/statistics_during_period") {
+            return {
+              "sensor.solcast_mae_day": solcastMaeHistory,
+              "sensor.helios_mae_day": heliosMaeHistory,
+              "sensor.solcast_energy_day": solcastEnergyHistory,
+              "sensor.helios_energy_day": heliosEnergyHistory,
+            };
+          }
+          return { "sensor.pv_power": actualHistory };
+        },
       };
 
       const common = {
@@ -215,6 +239,29 @@
         },
       });
       day.hass = hass;
+
+      const history = document.querySelector("#history");
+      history.setConfig({
+        type: "custom:pv-forecast-history-card",
+        title: "Prognosequalität · 30 Tage",
+        days: 30,
+        day_offset: -1,
+        default_metric: "energy",
+        actual_color: "#F59E0B",
+        provider_1: {
+          name: "Solcast",
+          color: "#22C55E",
+          mae_entity: "sensor.solcast_mae_day",
+          energy_entity: "sensor.solcast_energy_day",
+        },
+        provider_2: {
+          name: "Helios Forecast",
+          color: "#7C4DFF",
+          mae_entity: "sensor.helios_mae_day",
+          energy_entity: "sensor.helios_energy_day",
+        },
+      });
+      history.hass = hass;
     </script>
   </body>
 </html>
