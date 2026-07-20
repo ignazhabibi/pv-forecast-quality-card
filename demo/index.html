@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PV Forecast Quality Card preview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --primary-text-color: #111827;
+        --secondary-text-color: #667085;
+        --primary-color: #03a9f4;
+        --card-background-color: #ffffff;
+        --ha-card-background: #ffffff;
+        --secondary-background-color: #f2f4f7;
+        --divider-color: #d9dde3;
+        --ha-card-border-radius: 12px;
+        --ha-font-family-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 40px;
+        color: var(--primary-text-color);
+        background: #eef1f5;
+        font-family: var(--ha-font-family-body);
+      }
+
+      main {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+      }
+
+      .page-title {
+        margin: 0 0 6px;
+        font-size: 28px;
+      }
+
+      .page-copy {
+        margin: 0 0 28px;
+        color: var(--secondary-text-color);
+        font-size: 14px;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        align-items: start;
+      }
+
+      pv-forecast-quality-card {
+        min-width: 0;
+      }
+
+      ha-card {
+        box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+      }
+
+      @media (max-width: 760px) {
+        body {
+          padding: 20px;
+        }
+
+        .cards {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 class="page-title">PV-Prognosen im Vergleich</h1>
+      <p class="page-copy">Day-ahead-Prognose gegen die tatsächliche PV-Erzeugung.</p>
+      <section class="cards" aria-label="PV-Prognosequalität">
+        <pv-forecast-quality-card id="power"></pv-forecast-quality-card>
+        <pv-forecast-quality-card id="energy"></pv-forecast-quality-card>
+      </section>
+    </main>
+
+    <script type="module">
+      import "../dist/pv-forecast-quality-card.js";
+
+      const state = (entity_id, value, friendly_name) => ({
+        entity_id,
+        state: String(value),
+        attributes: { friendly_name },
+      });
+
+      const hass = {
+        locale: { language: "de-DE" },
+        states: {
+          "sensor.solcast_mae": state("sensor.solcast_mae", 1.5, "Solcast MAE heute"),
+          "sensor.helios_mae": state("sensor.helios_mae", 1.218, "Helios MAE heute"),
+          "sensor.solcast_energy": state("sensor.solcast_energy", 23.7, "Solcast Ertragsabweichung"),
+          "sensor.helios_energy": state("sensor.helios_energy", -2.4, "Helios Ertragsabweichung"),
+          "counter.intervals": state("counter.intervals", 26, "Ausgewertete Intervalle"),
+          "input_text.snapshot": state(
+            "input_text.snapshot",
+            "2026-07-20|2026-07-20T09:10:22+02:00|bootstrap",
+            "Snapshot",
+          ),
+        },
+      };
+
+      const common = {
+        provider_1: { name: "Solcast", color: "#22C55E", marker: "circle" },
+        provider_2: { name: "Helios Forecast", color: "#7C4DFF", marker: "diamond" },
+        interval_count_entity: "counter.intervals",
+        snapshot_entity: "input_text.snapshot",
+        minimum_intervals: 8,
+      };
+
+      const power = document.querySelector("#power");
+      power.setConfig({
+        type: "custom:pv-forecast-quality-card",
+        metric: "power",
+        ...common,
+        provider_1: { ...common.provider_1, entity: "sensor.solcast_mae" },
+        provider_2: { ...common.provider_2, entity: "sensor.helios_mae" },
+      });
+      power.hass = hass;
+
+      const energy = document.querySelector("#energy");
+      energy.setConfig({
+        type: "custom:pv-forecast-quality-card",
+        metric: "energy",
+        ...common,
+        provider_1: { ...common.provider_1, entity: "sensor.solcast_energy" },
+        provider_2: { ...common.provider_2, entity: "sensor.helios_energy" },
+      });
+      energy.hass = hass;
+    </script>
+  </body>
+</html>
