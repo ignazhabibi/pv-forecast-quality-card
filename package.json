@@ -1,7 +1,7 @@
 {
   "name": "pv-forecast-quality-card",
-  "version": "0.1.1",
-  "description": "A Home Assistant Sections card for understandable PV forecast quality comparisons.",
+  "version": "0.2.0",
+  "description": "Home Assistant Sections cards for PV forecast quality and daily power profiles.",
   "type": "module",
   "private": true,
   "engines": {
@@ -19,6 +19,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "echarts": "^6.1.0",
     "lit": "^3.3.1"
   },
   "devDependencies": {

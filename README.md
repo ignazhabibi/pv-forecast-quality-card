@@ -1,10 +1,15 @@
 # PV Forecast Quality Card
 
-A Home Assistant custom card that turns PV forecast error metrics into an understandable visual comparison. It is designed for Sections dashboards and works with one required forecast provider plus an optional comparison provider.
+A Home Assistant custom-card bundle for comparing PV forecasts with actual production. It contains compact quality cards and an ECharts day-profile card, all designed for Sections dashboards.
 
 ![Two independent PV forecast quality cards](docs/preview.svg)
 
-The card has two independent modes:
+The bundle registers two card types:
+
+- `custom:pv-forecast-quality-card` for understandable quality metrics
+- `custom:pv-forecast-day-card` for today's actual power and one or two forecast profiles
+
+The quality card has two independent modes:
 
 - `power`: average distance between forecast and actual power (MAE, in kW)
 - `energy`: deviation between forecast and actual yield (in %)
@@ -26,6 +31,47 @@ This is a frontend card. It does **not** freeze forecasts or calculate historica
 
 HACS should register the module automatically. If needed, add `/hacsfiles/pv-forecast-quality-card/pv-forecast-quality-card.js` as a JavaScript module under dashboard resources.
 
+## Daily ECharts profile
+
+The day card loads the actual entity's recorder history, averages it into five-minute bins, and converts the configured source unit to kW. Forecast arrays are read directly from entity attributes and linearly interpolated onto the same five-minute timeline.
+
+- Actual production is a solid orange 1.5 px line with a subtle 8% orange area.
+- Forecasts are dashed 1.5 px lines in their provider colors.
+- Legend and tooltip markers are always round dots.
+- The shared tooltip always lists every configured series; unavailable future actual values are shown as `–`.
+- The x-axis always spans the complete local day.
+
+```yaml
+type: custom:pv-forecast-day-card
+title: PV-Leistung heute
+actual:
+  name: Ist-Leistung
+  entity: sensor.wechselrichter_solar_power
+  color: "#F59E0B"
+  unit: W
+forecast_1:
+  name: Solcast
+  entity: sensor.solcast_pv_forecast_prognose_heute
+  color: "#22C55E"
+  unit: kW
+  attribute: detailedForecast
+  datetime_key: period_start
+  value_key: pv_estimate
+forecast_2:
+  name: Helios Forecast
+  entity: sensor.aussenbereich_pv_hausdach_power_now
+  color: "#7C4DFF"
+  unit: W
+  attribute: forecast
+  datetime_key: datetime
+  value_key: watts
+grid_options:
+  columns: full
+  rows: auto
+```
+
+Omit `forecast_2` for a single-provider day profile. The chart shows the integrations' currently reported forecasts; the quality cards remain the methodologically correct place to evaluate the frozen day-ahead snapshots.
+
 ## Two-provider example
 
 ```yaml
@@ -40,7 +86,7 @@ provider_2:
   name: Helios Forecast
   entity: sensor.helios_mae_today
   color: "#7C4DFF"
-  marker: diamond
+  marker: circle
 interval_count_entity: counter.pv_forecast_intervals
 snapshot_entity: input_text.pv_forecast_snapshot_status
 minimum_intervals: 8
@@ -63,7 +109,7 @@ provider_2:
   name: Helios Forecast
   entity: sensor.helios_energy_deviation_today
   color: "#7C4DFF"
-  marker: diamond
+  marker: circle
 interval_count_entity: counter.pv_forecast_intervals
 snapshot_entity: input_text.pv_forecast_snapshot_status
 minimum_intervals: 8
@@ -96,13 +142,15 @@ The card expects a signed percentage. Positive means the forecast predicted too 
 
 ## Sections sizing
 
-The card reports:
+The quality card reports:
 
 ```ts
 { columns: 6, min_columns: 6 }
 ```
 
 It intentionally does not report `rows`, `min_rows`, or `max_rows`. Home Assistant therefore uses the card's natural content height. Users can still set `rows: auto` explicitly in dashboard configuration.
+
+The day card reports 12 columns with a six-column minimum and also relies on natural height. Use `columns: full` and `rows: auto` when placing it in a Sections dashboard.
 
 ## Evaluation context
 

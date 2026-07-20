@@ -1,5 +1,12 @@
 # Third-party notices
 
+This distribution includes Apache ECharts, licensed under the Apache License 2.0.
+
+Copyright 2017-2025 The Apache Software Foundation.
+
+The complete Apache License 2.0 text is available at:
+https://www.apache.org/licenses/LICENSE-2.0
+
 This distribution includes Lit, licensed under the BSD 3-Clause License.
 
 Copyright (c) 2017 Google LLC. All rights reserved.

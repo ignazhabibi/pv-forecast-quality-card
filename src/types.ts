@@ -29,6 +29,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  callWS?<T>(message: Record<string, unknown>): Promise<T>;
   locale?: {
     language?: string;
   };

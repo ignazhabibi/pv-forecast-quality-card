@@ -143,7 +143,7 @@ export class PvForecastQualityCard extends LitElement {
       provider_2: {
         name: "Helios Forecast",
         color: DEFAULT_COMPARISON_COLOR,
-        marker: "diamond",
+        marker: "circle",
       },
       minimum_intervals: 8,
     };
@@ -271,7 +271,7 @@ export class PvForecastQualityCard extends LitElement {
           this._config.provider_2,
           comparisonFallback,
           DEFAULT_COMPARISON_COLOR,
-          "diamond",
+          "circle",
         ),
       );
     }
