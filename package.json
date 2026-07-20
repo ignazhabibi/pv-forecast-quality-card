@@ -1,6 +1,6 @@
 {
   "name": "pv-forecast-quality-card",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Home Assistant Sections card for understandable PV forecast quality comparisons.",
   "type": "module",
   "private": true,

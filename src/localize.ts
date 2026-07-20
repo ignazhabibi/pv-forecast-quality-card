@@ -1,18 +1,13 @@
 import type { ForecastQualityMetric } from "./types";
 
 export interface CardCopy {
-  context: string;
   powerTitle: string;
   energyTitle: string;
-  subtitle: string;
-  closerPower: string;
-  closerEnergy: string;
-  againstActualPower: string;
-  againstActualEnergy: string;
   equal: string;
   unavailable: string;
   unavailableHint: string;
-  lessDistance: (difference: string, name: string) => string;
+  bestMatch: (name: string) => string;
+  lessDistance: (difference: string) => string;
   singlePowerHint: string;
   tooHigh: string;
   tooLow: string;
@@ -21,8 +16,9 @@ export interface CardCopy {
   low: string;
   high: string;
   infoLabel: string;
-  preliminary: string;
   staleSnapshot: string;
+  powerTooltipTitle: string;
+  energyTooltipTitle: string;
   powerExplanation: (example: string, energy: string) => string;
   energyExplanation: string;
   completedIntervals: (count: number) => string;
@@ -35,35 +31,31 @@ export interface CardCopy {
 }
 
 const de: CardCopy = {
-  context: "PV-Prognosequalität",
-  powerTitle: "Leistungsgenauigkeit",
-  energyTitle: "Ertragsprognose",
-  subtitle: "Heute · abgeschlossene 15-Minuten-Intervalle",
-  closerPower: "Näher an der Ist-Leistung",
-  closerEnergy: "Näher am tatsächlichen Ertrag",
-  againstActualPower: "gegen die Ist-Leistung",
-  againstActualEnergy: "gegen den tatsächlichen Ertrag",
-  equal: "Beide Prognosen liegen gleichauf",
-  unavailable: "Noch keine Bewertung möglich",
-  unavailableHint: "Prüfe die ausgewählten Entitäten und warte auf das erste abgeschlossene Intervall.",
-  lessDistance: (difference, name) => `${difference} weniger mittlerer Abstand als ${name}`,
-  singlePowerHint: "mittlerer Abstand je ausgewertetem Viertelstunden-Intervall",
-  tooHigh: "bisher etwas zu viel erwartet",
-  tooLow: "bisher etwas zu wenig erwartet",
-  exact: "entspricht bisher exakt dem Ist-Ertrag",
+  powerTitle: "PV-Leistungsfehler",
+  energyTitle: "PV-Ertragsabweichung",
+  equal: "Gleichauf",
+  unavailable: "Noch keine Auswertung",
+  unavailableHint: "Entitäten prüfen oder auf das erste Intervall warten.",
+  bestMatch: (name) => `${name} liegt näher am Ist`,
+  lessDistance: (difference) => `${difference} geringerer Fehler`,
+  singlePowerHint: "mittlerer Fehler zur Ist-Leistung",
+  tooHigh: "über Ist",
+  tooLow: "unter Ist",
+  exact: "exakt am Ist",
   idealZero: "0 · ideal",
   low: "zu wenig",
   high: "zu viel",
   infoLabel: "Kennzahl erklären",
-  preliminary: "Erste Tendenz",
-  staleSnapshot: "Der hinterlegte Prognose-Snapshot gehört nicht zum heutigen Tag.",
+  staleSnapshot: "Der Prognose-Snapshot ist nicht von heute.",
+  powerTooltipTitle: "Mittlerer absoluter Fehler (MAE)",
+  energyTooltipTitle: "Ertragsabweichung",
   powerExplanation: (example, energy) =>
-    `Fachbegriff: mittlerer absoluter Fehler (MAE). Für jedes abgeschlossene 15-Minuten-Intervall wird der Abstand zwischen Prognose und tatsächlicher Durchschnittsleistung berechnet; anschließend werden alle Abstände gemittelt. ${example} kW bedeutet nicht „pro Stunde“. Für ein Viertelstunden-Intervall entsprechen ${example} kW rechnerisch ${energy} kWh Abstand. Kleiner ist besser.`,
+    `Mittelt den Abstand zwischen Prognose und Ist-Leistung je abgeschlossenem 15-Minuten-Intervall. ${example} kW entsprechen dabei ${energy} kWh. Kleiner ist besser.`,
   energyExplanation:
-    "Verglichen wird die vorhergesagte Energie mit der tatsächlich erzeugten Energie derselben abgeschlossenen Intervalle. Plus bedeutet insgesamt zu viel erwartet, Minus zu wenig. 0 % wäre exakt; für die Genauigkeit zählt daher der Abstand zu 0 %.",
-  completedIntervals: (count) => `${count} ausgewertete Viertelstunden`,
-  firstTrend: (count, minimum) => `Erste Tendenz · ${count} von mindestens ${minimum} Viertelstunden`,
-  waitingIntervals: "Warten auf abgeschlossene Intervalle",
+    "Vergleicht prognostizierte und tatsächliche Energie der abgeschlossenen Intervalle. Plus bedeutet zu viel, Minus zu wenig; 0 % ist ideal.",
+  completedIntervals: (count) => `${count} Intervalle`,
+  firstTrend: (count, minimum) => `${count}/${minimum} Intervalle · erste Tendenz`,
+  waitingIntervals: "Kein Intervall",
   dayAhead: "Day-ahead",
   testRun: "Testlauf",
   providerOne: "Anbieter 1",
@@ -71,35 +63,31 @@ const de: CardCopy = {
 };
 
 const en: CardCopy = {
-  context: "PV forecast quality",
-  powerTitle: "Power accuracy",
-  energyTitle: "Yield forecast",
-  subtitle: "Today · completed 15-minute intervals",
-  closerPower: "Closer to actual power",
-  closerEnergy: "Closer to actual yield",
-  againstActualPower: "against actual power",
-  againstActualEnergy: "against actual yield",
-  equal: "Both forecasts are tied",
-  unavailable: "No evaluation available yet",
-  unavailableHint: "Check the selected entities and wait for the first completed interval.",
-  lessDistance: (difference, name) => `${difference} less average distance than ${name}`,
-  singlePowerHint: "average distance per evaluated 15-minute interval",
-  tooHigh: "forecast has been slightly too high",
-  tooLow: "forecast has been slightly too low",
-  exact: "matches the actual yield so far",
+  powerTitle: "PV power error",
+  energyTitle: "PV yield deviation",
+  equal: "Tied",
+  unavailable: "No evaluation yet",
+  unavailableHint: "Check the entities or wait for the first interval.",
+  bestMatch: (name) => `${name} is closer to actual`,
+  lessDistance: (difference) => `${difference} lower error`,
+  singlePowerHint: "average error against actual power",
+  tooHigh: "above actual",
+  tooLow: "below actual",
+  exact: "exactly on actual",
   idealZero: "0 · ideal",
   low: "too low",
   high: "too high",
   infoLabel: "Explain this metric",
-  preliminary: "Early trend",
-  staleSnapshot: "The configured forecast snapshot does not belong to today.",
+  staleSnapshot: "The forecast snapshot is not from today.",
+  powerTooltipTitle: "Mean absolute error (MAE)",
+  energyTooltipTitle: "Yield deviation",
   powerExplanation: (example, energy) =>
-    `Scientific term: mean absolute error (MAE). For every completed 15-minute interval, the distance between forecast and actual average power is calculated; all distances are then averaged. ${example} kW does not mean “per hour”. Over one 15-minute interval, ${example} kW corresponds to ${energy} kWh of energy distance. Lower is better.`,
+    `Averages the distance between forecast and actual power for each completed 15-minute interval. ${example} kW corresponds to ${energy} kWh. Lower is better.`,
   energyExplanation:
-    "Forecast energy is compared with actual energy from the same completed intervals. Positive means the forecast was too high, negative means it was too low. 0% would be exact, so accuracy is measured by the distance from 0%.",
-  completedIntervals: (count) => `${count} evaluated 15-minute intervals`,
-  firstTrend: (count, minimum) => `Early trend · ${count} of at least ${minimum} intervals`,
-  waitingIntervals: "Waiting for completed intervals",
+    "Compares forecast and actual energy for completed intervals. Positive means too high, negative too low; 0% is ideal.",
+  completedIntervals: (count) => `${count} intervals`,
+  firstTrend: (count, minimum) => `${count}/${minimum} intervals · early trend`,
+  waitingIntervals: "No interval yet",
   dayAhead: "Day-ahead",
   testRun: "Test run",
   providerOne: "Provider 1",

@@ -27,12 +27,10 @@ export class PvForecastQualityCard extends LitElement {
   static properties = {
     hass: { attribute: false },
     _config: { state: true },
-    _explanationOpen: { state: true },
   };
 
   hass?: HomeAssistant;
   private _config?: ForecastQualityCardConfig;
-  private _explanationOpen = false;
 
   static getConfigForm(): Record<string, unknown> {
     return {
@@ -167,7 +165,7 @@ export class PvForecastQualityCard extends LitElement {
   }
 
   getCardSize(): number {
-    return 5;
+    return 4;
   }
 
   getGridOptions(): Record<string, number> {
@@ -208,35 +206,30 @@ export class PvForecastQualityCard extends LitElement {
       : noCompletedIntervals
         ? copy.waitingIntervals
         : undefined;
+    const tooltipTitle =
+      metric === "power" ? copy.powerTooltipTitle : copy.energyTooltipTitle;
+    const tooltipBody = this._explanation(metric, readings[0]?.value ?? null, locale, copy);
 
     return html`
       <ha-card>
         <div class="card-content">
           <header class="card-header">
-            <div class="title-block">
-              <span class="context">${copy.context}</span>
-              <h2>${title}</h2>
-              <p>${copy.subtitle}</p>
+            <h2>${title}</h2>
+            <div class="info-control">
+              <button
+                class="info-button"
+                type="button"
+                aria-label=${copy.infoLabel}
+                aria-describedby="metric-tooltip"
+              >
+                ${this._infoIcon()}
+              </button>
+              <span id="metric-tooltip" class="metric-tooltip" role="tooltip">
+                <strong>${tooltipTitle}</strong>
+                <span>${tooltipBody}</span>
+              </span>
             </div>
-            <button
-              class="info-button"
-              type="button"
-              aria-label=${copy.infoLabel}
-              aria-expanded=${String(this._explanationOpen)}
-              aria-controls="metric-explanation"
-              @click=${() => {
-                this._explanationOpen = !this._explanationOpen;
-              }}
-            >
-              ${this._infoIcon()}
-            </button>
           </header>
-
-          ${this._explanationOpen
-            ? html`<aside id="metric-explanation" class="explanation">
-                ${this._explanation(metric, readings[0]?.value ?? null, locale, copy)}
-              </aside>`
-            : nothing}
 
           ${this._verdict(metric, comparison, locale, copy, preliminary, unavailableReason)}
           ${this._chart(metric, readings, scale, locale, copy)}
@@ -328,18 +321,13 @@ export class PvForecastQualityCard extends LitElement {
   ): TemplateResult {
     if (comparison.kind === "unavailable") {
       return html`<section class="verdict unavailable">
-        <span class="verdict-label">${copy.unavailable}</span>
-        <strong>${unavailableReason ?? copy.unavailableHint}</strong>
+        <strong class="verdict-value verdict-empty">${copy.unavailable}</strong>
+        <span class="verdict-support">${unavailableReason ?? copy.unavailableHint}</span>
       </section>`;
     }
 
     if (comparison.kind === "tie") {
       return html`<section class="verdict">
-        <span class="verdict-label">
-          ${preliminary ? `${copy.preliminary} · ` : ""}${metric === "power"
-            ? copy.closerPower
-            : copy.closerEnergy}
-        </span>
         <strong class="verdict-value">${copy.equal}</strong>
       </section>`;
     }
@@ -350,13 +338,10 @@ export class PvForecastQualityCard extends LitElement {
     if (comparison.kind === "single") {
       const value = this._formatValue(metric, winner.value, locale);
       const support =
-        metric === "power" ? copy.singlePowerHint : this._energyDirection(winner.value, copy);
+        metric === "power"
+          ? `${winner.name} · ${copy.singlePowerHint}`
+          : `${winner.name} · ${this._energyDirection(winner.value, copy)}`;
       return html`<section class="verdict">
-        <span class="verdict-label">
-          ${preliminary ? `${copy.preliminary} · ` : ""}
-          ${winner.name}
-          ${metric === "power" ? copy.againstActualPower : copy.againstActualEnergy}
-        </span>
         <strong class="verdict-value numeric">${value}</strong>
         <span class="verdict-support">${support}</span>
       </section>`;
@@ -364,22 +349,14 @@ export class PvForecastQualityCard extends LitElement {
 
     const support =
       metric === "power" && comparison.difference !== undefined && comparison.other
-        ? copy.lessDistance(
-            this._formatValue(metric, comparison.difference, locale),
-            comparison.other.name,
-          )
-        : `${this._formatValue(metric, winner.value, locale)} · ${this._energyDirection(
+        ? copy.lessDistance(this._formatValue(metric, comparison.difference, locale))
+        : `${this._formatMagnitude(metric, winner.value, locale)} ${this._energyDirection(
             winner.value,
             copy,
           )}`;
 
     return html`<section class="verdict">
-      <span class="verdict-label">
-        ${preliminary ? `${copy.preliminary} · ` : ""}${metric === "power"
-          ? copy.closerPower
-          : copy.closerEnergy}
-      </span>
-      <div class="winner-line">
+      <div class="winner-line" aria-label=${copy.bestMatch(winner.name)}>
         ${preliminary ? nothing : this._checkIcon()}<strong class="verdict-value">${winner.name}</strong>
       </div>
       <span class="verdict-support">${support}</span>
@@ -461,6 +438,18 @@ export class PvForecastQualityCard extends LitElement {
     return `${format.format(value)} ${metric === "power" ? "kW" : "%"}`;
   }
 
+  private _formatMagnitude(
+    metric: ForecastQualityMetric,
+    value: number,
+    locale: string,
+  ): string {
+    const format = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: metric === "power" ? 2 : 1,
+      maximumFractionDigits: metric === "power" ? 2 : 1,
+    });
+    return `${format.format(Math.abs(value))} ${metric === "power" ? "kW" : "%"}`;
+  }
+
   private _formatAxis(value: number, locale: string): string {
     return new Intl.NumberFormat(locale, {
       minimumFractionDigits: value % 1 === 0 ? 0 : 1,
@@ -479,7 +468,7 @@ export class PvForecastQualityCard extends LitElement {
     minimum: number,
     copy: ReturnType<typeof getCopy>,
   ): string {
-    if (count === null) return copy.subtitle;
+    if (count === null) return copy.waitingIntervals;
     const rounded = Math.max(0, Math.round(count));
     if (rounded === 0) return copy.waitingIntervals;
     if (rounded < minimum) return copy.firstTrend(rounded, minimum);
@@ -543,7 +532,7 @@ export class PvForecastQualityCard extends LitElement {
     .card-content {
       box-sizing: border-box;
       display: grid;
-      gap: 20px;
+      gap: 16px;
       padding: 24px;
     }
 
@@ -557,17 +546,11 @@ export class PvForecastQualityCard extends LitElement {
     }
 
     .card-header {
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       gap: 16px;
     }
 
-    .title-block {
-      min-width: 0;
-    }
-
-    .context,
-    .verdict-label,
     .axis,
     .card-footer {
       color: var(--secondary-text-color);
@@ -575,39 +558,27 @@ export class PvForecastQualityCard extends LitElement {
       line-height: 1.4;
     }
 
-    .context {
-      display: block;
-      margin-bottom: 3px;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-    }
-
-    h2,
-    p {
-      margin: 0;
-    }
-
     h2 {
+      margin: 0;
+      min-width: 0;
       overflow-wrap: anywhere;
       font-size: 18px;
       font-weight: 700;
       line-height: 1.25;
     }
 
-    .title-block p {
-      margin-top: 3px;
-      color: var(--secondary-text-color);
-      font-size: 13px;
-      line-height: 1.4;
+    .info-control {
+      position: relative;
+      z-index: 4;
+      flex: 0 0 auto;
     }
 
     .info-button {
       display: grid;
       width: 36px;
       height: 36px;
-      flex: 0 0 36px;
       place-items: center;
-      margin: -6px -6px 0 0;
+      margin: -6px -6px -6px 0;
       padding: 0;
       color: var(--secondary-text-color);
       border: 0;
@@ -617,8 +588,7 @@ export class PvForecastQualityCard extends LitElement {
     }
 
     .info-button:hover,
-    .info-button:focus-visible,
-    .info-button[aria-expanded="true"] {
+    .info-button:focus-visible {
       color: var(--primary-text-color);
       background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
     }
@@ -639,27 +609,61 @@ export class PvForecastQualityCard extends LitElement {
       stroke-width: 1.8;
     }
 
-    .explanation {
-      padding: 14px 16px;
+    .metric-tooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(320px, calc(100vw - 64px));
+      box-sizing: border-box;
+      padding: 12px 14px;
+      visibility: hidden;
       color: var(--primary-text-color);
-      border-left: 3px solid var(--primary-text-color);
-      background: var(--secondary-background-color, rgba(127, 127, 127, 0.09));
+      border: 1px solid var(--divider-color);
+      border-radius: 12px;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+      opacity: 0;
+      transform: translateY(-4px);
+      transition:
+        opacity 120ms ease,
+        transform 120ms ease,
+        visibility 120ms;
+      pointer-events: none;
       font-size: 13px;
-      line-height: 1.55;
+      line-height: 1.45;
+      text-align: left;
+    }
+
+    .metric-tooltip strong,
+    .metric-tooltip span {
+      display: block;
+    }
+
+    .metric-tooltip strong {
+      margin-bottom: 5px;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .info-control:hover .metric-tooltip,
+    .info-control:focus-within .metric-tooltip {
+      visibility: visible;
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .verdict {
       display: grid;
       gap: 4px;
-      min-height: 64px;
       align-content: start;
     }
 
-    .verdict.unavailable strong {
+    .verdict-empty {
+      font-size: 18px;
+    }
+
+    .verdict.unavailable .verdict-support {
       max-width: 42ch;
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1.45;
     }
 
     .winner-line {
@@ -687,14 +691,14 @@ export class PvForecastQualityCard extends LitElement {
     }
 
     .verdict-support {
-      color: var(--primary-text-color);
+      color: var(--secondary-text-color);
       font-size: 13px;
       line-height: 1.4;
     }
 
     .chart {
       display: grid;
-      gap: 16px;
+      gap: 14px;
     }
 
     .chart-row {
@@ -812,7 +816,7 @@ export class PvForecastQualityCard extends LitElement {
     .card-footer {
       flex-wrap: wrap;
       gap: 5px;
-      padding-top: 12px;
+      padding-top: 10px;
       border-top: 1px solid var(--divider-color);
     }
 
@@ -822,7 +826,7 @@ export class PvForecastQualityCard extends LitElement {
 
     @media (max-width: 360px) {
       .card-content {
-        gap: 16px;
+        gap: 14px;
         padding: 18px;
       }
 
@@ -842,6 +846,10 @@ export class PvForecastQualityCard extends LitElement {
 
       .provider-name span {
         white-space: normal;
+      }
+
+      .metric-tooltip {
+        width: min(280px, calc(100vw - 40px));
       }
     }
 

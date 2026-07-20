@@ -11,6 +11,8 @@ The card has two independent modes:
 
 Use two card instances when you want to show both evaluations. Each instance remains a separate Home Assistant card and uses natural, content-based height.
 
+The compact card surface shows only the verdict, provider values, and evaluation status. Metric details are available from the info button as an overlay tooltip on hover, keyboard focus, or tap without changing the card height.
+
 ## Important data contract
 
 This is a frontend card. It does **not** freeze forecasts or calculate historical day-ahead quality on its own. Supply entities that already represent a methodologically valid comparison. If a forecast integration updates during the day, freeze the day-ahead forecast in the Home Assistant backend before calculating the metrics.
