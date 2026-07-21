@@ -62,7 +62,7 @@ window.customCards.push({
 });
 
 console.info(
-  "%c PV FORECAST QUALITY CARD %c v0.4.1 ",
+  "%c PV FORECAST QUALITY CARD %c v0.4.2 ",
   "color: white; background: #111827; font-weight: 700; padding: 3px 6px; border-radius: 4px 0 0 4px;",
   "color: #111827; background: #e5e7eb; font-weight: 600; padding: 3px 6px; border-radius: 0 4px 4px 0;",
 );

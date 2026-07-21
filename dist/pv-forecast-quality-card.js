@@ -25451,7 +25451,9 @@ Cl.properties = {
     .card-content {
       box-sizing: border-box;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
+      min-width: 0;
       padding: 24px 24px 16px;
     }
 
@@ -25460,6 +25462,7 @@ Cl.properties = {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      min-width: 0;
     }
 
     .title-block {
@@ -25554,6 +25557,8 @@ Cl.properties = {
 
     .chart {
       width: 100%;
+      min-width: 0;
+      max-width: 100%;
       height: 360px;
       min-height: 280px;
     }
@@ -26193,7 +26198,9 @@ Al.properties = {
     .card-content {
       box-sizing: border-box;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
+      min-width: 0;
       padding: 24px 24px 16px;
     }
 
@@ -26202,6 +26209,7 @@ Al.properties = {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      min-width: 0;
     }
 
     h2 {
@@ -26326,6 +26334,8 @@ Al.properties = {
 
     .chart {
       width: 100%;
+      min-width: 0;
+      max-width: 100%;
       height: 340px;
       min-height: 280px;
     }
@@ -26725,7 +26735,7 @@ window.customCards.push({
   documentationURL: "https://github.com/ignazhabibi/pv-forecast-quality-card"
 });
 console.info(
-  "%c PV FORECAST QUALITY CARD %c v0.4.1 ",
+  "%c PV FORECAST QUALITY CARD %c v0.4.2 ",
   "color: white; background: #111827; font-weight: 700; padding: 3px 6px; border-radius: 4px 0 0 4px;",
   "color: #111827; background: #e5e7eb; font-weight: 600; padding: 3px 6px; border-radius: 0 4px 4px 0;"
 );

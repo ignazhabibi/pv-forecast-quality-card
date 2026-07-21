@@ -748,7 +748,9 @@ export class PvForecastDayCard extends LitElement {
     .card-content {
       box-sizing: border-box;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
+      min-width: 0;
       padding: 24px 24px 16px;
     }
 
@@ -757,6 +759,7 @@ export class PvForecastDayCard extends LitElement {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      min-width: 0;
     }
 
     .title-block {
@@ -851,6 +854,8 @@ export class PvForecastDayCard extends LitElement {
 
     .chart {
       width: 100%;
+      min-width: 0;
+      max-width: 100%;
       height: 360px;
       min-height: 280px;
     }
