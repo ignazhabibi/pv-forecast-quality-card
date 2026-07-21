@@ -29,6 +29,8 @@ export interface CardCopy {
   current: string;
   earlyVerdict: string;
   liveUnavailable: string;
+  liveVerdict: string;
+  liveHint: string;
   forecastEnergy: string;
   actualEnergy: string;
   testRun: string;
@@ -67,6 +69,8 @@ const de: CardCopy = {
   current: "Aktuell",
   earlyVerdict: "Noch zu früh für ein Urteil",
   liveUnavailable: "Der aktuelle Stand verändert sich laufend und wird erst als fester Prognosestand fair bewertet.",
+  liveVerdict: "Kein Qualitätsurteil",
+  liveHint: "laufend aktualisiert",
   forecastEnergy: "Prognose",
   actualEnergy: "Ist",
   testRun: "Testlauf",
@@ -105,6 +109,8 @@ const en: CardCopy = {
   current: "Current",
   earlyVerdict: "Too early for a verdict",
   liveUnavailable: "The current issue keeps changing and can only be evaluated fairly once it is stored as a fixed forecast issue.",
+  liveVerdict: "No quality verdict",
+  liveHint: "continuously updated",
   forecastEnergy: "Forecast",
   actualEnergy: "Actual",
   testRun: "Test run",

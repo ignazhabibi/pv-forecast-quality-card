@@ -569,6 +569,8 @@ const Yy = "important", JS = " !" + Yy, tw = QS(class extends jS {
   current: "Aktuell",
   earlyVerdict: "Noch zu früh für ein Urteil",
   liveUnavailable: "Der aktuelle Stand verändert sich laufend und wird erst als fester Prognosestand fair bewertet.",
+  liveVerdict: "Kein Qualitätsurteil",
+  liveHint: "laufend aktualisiert",
   forecastEnergy: "Prognose",
   actualEnergy: "Ist",
   testRun: "Testlauf",
@@ -603,6 +605,8 @@ const Yy = "important", JS = " !" + Yy, tw = QS(class extends jS {
   current: "Current",
   earlyVerdict: "Too early for a verdict",
   liveUnavailable: "The current issue keeps changing and can only be evaluated fairly once it is stored as a fixed forecast issue.",
+  liveVerdict: "No quality verdict",
+  liveHint: "continuously updated",
   forecastEnergy: "Forecast",
   actualEnergy: "Actual",
   testRun: "Test run",
@@ -814,7 +818,12 @@ const yd = "#22C55E", _d = "#7C4DFF", Tl = class Tl extends Er {
       n.providerTwo,
       e,
       !e.evaluable
-    ), s = o.map((S) => S.value), l = t === "power" ? ow(s) : sw(s), u = this._config.title ?? (t === "power" ? n.powerTitle : n.energyTitle), f = fa(this.hass, e.interval_count_entity), c = Math.max(1, Math.round(this._config.minimum_intervals ?? 8)), h = e.snapshot_entity ? this.hass?.states[e.snapshot_entity]?.state : void 0, v = Xy(h), d = e.evaluable && qy(v, this._todayKey()), p = f !== null && f <= 0, m = f !== null && f > 0 && f < c, g = !e.evaluable || d || p ? { kind: "unavailable" } : uw(t, o), y = e.evaluable ? d ? n.staleSnapshot : p ? n.waitingIntervals : void 0 : n.liveUnavailable, _ = t === "power" ? n.powerTooltipTitle : n.energyTooltipTitle, b = this._explanation(t, o[0]?.value ?? null, a, n);
+    ), s = o.map((S) => S.value), l = t === "power" ? ow(s) : sw(s), u = this._config.title ?? (t === "power" ? n.powerTitle : n.energyTitle), f = fa(this.hass, e.interval_count_entity), c = Math.max(1, Math.round(this._config.minimum_intervals ?? 8)), h = e.snapshot_entity ? this.hass?.states[e.snapshot_entity]?.state : void 0, v = Xy(h), d = e.evaluable && qy(v, this._todayKey()), p = f !== null && f <= 0, m = f !== null && f > 0 && f < c, g = !e.evaluable || d || p ? { kind: "unavailable" } : uw(t, o), y = e.evaluable ? d ? n.staleSnapshot : p ? n.waitingIntervals : void 0 : n.liveHint, _ = t === "power" ? n.powerTooltipTitle : n.energyTooltipTitle, b = `${e.evaluable ? "" : `${n.liveUnavailable} `}${this._explanation(
+      t,
+      o[0]?.value ?? null,
+      a,
+      n
+    )}`;
     return rt`
       <ha-card>
         <div class="card-content">
@@ -836,7 +845,15 @@ const yd = "#22C55E", _d = "#7C4DFF", Tl = class Tl extends Er {
             </div>
           </header>
 
-          ${this._verdict(t, g, a, n, m, y)}
+          ${this._verdict(
+      t,
+      g,
+      a,
+      n,
+      m,
+      y,
+      !e.evaluable
+    )}
           ${this._chart(t, o, l, a, n)}
 
           <footer class="card-footer">
@@ -891,10 +908,10 @@ const yd = "#22C55E", _d = "#7C4DFF", Tl = class Tl extends Er {
       actualEnergy: s ? null : fa(this.hass, o)
     };
   }
-  _verdict(t, e, i, n, a, o) {
+  _verdict(t, e, i, n, a, o, s = !1) {
     if (e.kind === "unavailable")
       return rt`<section class="verdict unavailable">
-        <strong class="verdict-value verdict-empty">${n.unavailable}</strong>
+        <strong class="verdict-value verdict-empty">${s ? n.liveVerdict : n.unavailable}</strong>
         <span class="verdict-support">${o ?? n.unavailableHint}</span>
       </section>`;
     if (a)
@@ -905,24 +922,24 @@ const yd = "#22C55E", _d = "#7C4DFF", Tl = class Tl extends Er {
       return rt`<section class="verdict">
         <strong class="verdict-value">${n.equal}</strong>
       </section>`;
-    const s = e.winner;
-    if (!s || s.value === null) return rt``;
+    const l = e.winner;
+    if (!l || l.value === null) return rt``;
     if (e.kind === "single") {
-      const u = this._formatValue(t, s.value, i), f = t === "power" ? `${s.name} · ${n.singlePowerHint}` : `${s.name} · ${this._energyDirection(s.value, n)}`;
+      const f = this._formatValue(t, l.value, i), c = t === "power" ? `${l.name} · ${n.singlePowerHint}` : `${l.name} · ${this._energyDirection(l.value, n)}`;
       return rt`<section class="verdict">
-        <strong class="verdict-value numeric">${u}</strong>
-        <span class="verdict-support">${f}</span>
+        <strong class="verdict-value numeric">${f}</strong>
+        <span class="verdict-support">${c}</span>
       </section>`;
     }
-    const l = t === "power" && e.difference !== void 0 && e.other ? n.lessDistance(this._formatValue(t, e.difference, i)) : `${this._formatMagnitude(t, s.value, i)} ${this._energyDirection(
-      s.value,
+    const u = t === "power" && e.difference !== void 0 && e.other ? n.lessDistance(this._formatValue(t, e.difference, i)) : `${this._formatMagnitude(t, l.value, i)} ${this._energyDirection(
+      l.value,
       n
     )}`;
     return rt`<section class="verdict">
-      <div class="winner-line" aria-label=${n.bestMatch(s.name)}>
-        ${a ? gt : this._checkIcon()}<strong class="verdict-value">${s.name}</strong>
+      <div class="winner-line" aria-label=${n.bestMatch(l.name)}>
+        ${a ? gt : this._checkIcon()}<strong class="verdict-value">${l.name}</strong>
       </div>
-      <span class="verdict-support">${l}</span>
+      <span class="verdict-support">${u}</span>
     </section>`;
   }
   _chart(t, e, i, n, a) {
@@ -26708,7 +26725,7 @@ window.customCards.push({
   documentationURL: "https://github.com/ignazhabibi/pv-forecast-quality-card"
 });
 console.info(
-  "%c PV FORECAST QUALITY CARD %c v0.4.0 ",
+  "%c PV FORECAST QUALITY CARD %c v0.4.1 ",
   "color: white; background: #111827; font-weight: 700; padding: 3px 6px; border-radius: 4px 0 0 4px;",
   "color: #111827; background: #e5e7eb; font-weight: 600; padding: 3px 6px; border-radius: 0 4px 4px 0;"
 );

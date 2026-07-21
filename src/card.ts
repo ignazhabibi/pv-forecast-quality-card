@@ -219,7 +219,7 @@ export class PvForecastQualityCard extends LitElement {
         ? ({ kind: "unavailable" } as const)
         : compareReadings(metric, readings);
     const unavailableReason = !active.evaluable
-      ? copy.liveUnavailable
+      ? copy.liveHint
       : snapshotStale
         ? copy.staleSnapshot
         : noCompletedIntervals
@@ -227,7 +227,12 @@ export class PvForecastQualityCard extends LitElement {
           : undefined;
     const tooltipTitle =
       metric === "power" ? copy.powerTooltipTitle : copy.energyTooltipTitle;
-    const tooltipBody = this._explanation(metric, readings[0]?.value ?? null, locale, copy);
+    const tooltipBody = `${!active.evaluable ? `${copy.liveUnavailable} ` : ""}${this._explanation(
+      metric,
+      readings[0]?.value ?? null,
+      locale,
+      copy,
+    )}`;
 
     return html`
       <ha-card>
@@ -250,7 +255,15 @@ export class PvForecastQualityCard extends LitElement {
             </div>
           </header>
 
-          ${this._verdict(metric, comparison, locale, copy, preliminary, unavailableReason)}
+          ${this._verdict(
+            metric,
+            comparison,
+            locale,
+            copy,
+            preliminary,
+            unavailableReason,
+            !active.evaluable,
+          )}
           ${this._chart(metric, readings, scale, locale, copy)}
 
           <footer class="card-footer">
@@ -352,10 +365,11 @@ export class PvForecastQualityCard extends LitElement {
     copy: ReturnType<typeof getCopy>,
     preliminary: boolean,
     unavailableReason?: string,
+    live = false,
   ): TemplateResult {
     if (comparison.kind === "unavailable") {
       return html`<section class="verdict unavailable">
-        <strong class="verdict-value verdict-empty">${copy.unavailable}</strong>
+        <strong class="verdict-value verdict-empty">${live ? copy.liveVerdict : copy.unavailable}</strong>
         <span class="verdict-support">${unavailableReason ?? copy.unavailableHint}</span>
       </section>`;
     }
