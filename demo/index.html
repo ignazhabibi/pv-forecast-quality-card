@@ -212,9 +212,9 @@
       const day = document.querySelector("#day");
       day.setConfig({
         type: "custom:pv-forecast-day-card",
-        title: "PV-Leistung heute",
+        title: "Heute: PV-Erzeugung und Prognosen",
         actual: {
-          name: "Ist-Leistung",
+          name: "Gemessene Leistung",
           entity: "sensor.pv_power",
           color: "#F59E0B",
           unit: "W",
@@ -243,7 +243,7 @@
       const history = document.querySelector("#history");
       history.setConfig({
         type: "custom:pv-forecast-history-card",
-        title: "Prognosequalität · 30 Tage",
+        title: "Prognosegenauigkeit · 30 Tage",
         days: 30,
         day_offset: -1,
         default_metric: "energy",

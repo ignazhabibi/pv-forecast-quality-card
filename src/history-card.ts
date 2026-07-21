@@ -123,7 +123,7 @@ export class PvForecastHistoryCard extends LitElement {
             select: {
               mode: "dropdown",
               options: [
-                { value: "energy", label: "Yield / Tagesertrag" },
+                { value: "energy", label: "Daily energy / Energie pro Tag" },
                 { value: "power", label: "Power profile / Leistungsverlauf" },
               ],
             },
@@ -149,11 +149,11 @@ export class PvForecastHistoryCard extends LitElement {
           days: "Days / Tage",
           day_offset: "Day offset / Tagesverschiebung",
           default_metric: "Default metric / Standardkennzahl",
-          actual_color: "Actual reference color / Farbe der Ist-Referenz",
+          actual_color: "Produced energy reference color / Farbe der erzeugten Energie",
           name: "Name",
           color: "Color / Farbe",
           mae_entity: "Daily MAE entity / MAE-Tagesentität",
-          energy_entity: "Daily yield deviation entity / Tagesertragsabweichung",
+          energy_entity: "Daily energy deviation entity / Abweichung der Tagesenergie",
         };
         return labels[schema.name ?? ""] ?? schema.name ?? "";
       },
@@ -162,7 +162,7 @@ export class PvForecastHistoryCard extends LitElement {
 
   static getStubConfig(): Omit<PvForecastHistoryCardConfig, "type"> {
     return {
-      title: "Prognosequalität · 30 Tage",
+      title: "Prognosegenauigkeit · 30 Tage",
       days: 30,
       day_offset: -1,
       default_metric: "energy",
@@ -244,7 +244,9 @@ export class PvForecastHistoryCard extends LitElement {
     const german = locale.toLowerCase().startsWith("de");
     const title =
       this._config.title?.trim() ||
-      (german ? "Prognosequalität · 30 Tage" : "Forecast quality · 30 days");
+      (german
+        ? `Prognosegenauigkeit · ${this._config.days ?? 30} Tage`
+        : `Forecast accuracy · ${this._config.days ?? 30} days`);
     const view = this._metricView(this._selectedMetric);
     const active = this._activeContext();
     const hasData = active.evaluable && view.series.some((item) => item.values.size > 0);
@@ -265,9 +267,12 @@ export class PvForecastHistoryCard extends LitElement {
                 ${this._infoIcon()}
               </button>
               <span id="history-chart-tooltip" class="info-tooltip" role="tooltip">
-                ${german
-                  ? "Tagesertrag zeigt die prozentuale Abweichung von der tatsächlich erzeugten Tagesenergie. Leistungsverlauf zeigt den mittleren absoluten Leistungsfehler (MAE) aller Intervalle eines Tages."
-                  : "Yield shows the percentage deviation from actual daily energy. Power profile shows the mean absolute power error (MAE) across each day's intervals."}
+                <strong>${german ? "Zwei Arten von Genauigkeit" : "Two kinds of accuracy"}</strong>
+                <span>
+                  ${german
+                    ? "Energie pro Tag zeigt, um wie viel Prozent die erwartete von der tatsächlich erzeugten Tagesenergie abwich. Leistungsverlauf zeigt in kW, wie weit die Prognose im Tagesmittel von der gemessenen Leistung entfernt war."
+                    : "Energy per day shows by what percentage expected daily energy differed from actual production. Power profile shows in kW how far the forecast was from measured power on average across the day."}
+                </span>
               </span>
             </div>
           </header>
@@ -279,7 +284,7 @@ export class PvForecastHistoryCard extends LitElement {
               aria-pressed=${this._selectedMetric === "energy"}
               @click=${() => this._selectMetric("energy")}
             >
-              ${german ? "Tagesertrag" : "Yield"}
+              ${german ? "Energie pro Tag" : "Energy per day"}
             </button>
             <button
               type="button"
@@ -302,21 +307,16 @@ export class PvForecastHistoryCard extends LitElement {
           ></div>
           ${!hasData ? this._emptyState(german, active.evaluable) : nothing}
 
-          <footer class="card-footer">
-            ${hasData
-              ? html`${active.label ? `${active.label} · ` : ""}${evaluatedDays} ${german ? "vollständige Tage" : "complete days"}
-                  <span aria-hidden="true">·</span>
-                  ${german
-                    ? `letzte ${this._config.days ?? 30} Tage`
-                    : `last ${this._config.days ?? 30} days`}`
-              : !active.evaluable
-                ? german
-                  ? "Der laufend aktualisierte Stand wird nicht als feste Prognose archiviert."
-                  : "The continuously updated issue is not archived as a fixed forecast."
-                : german
-                  ? `Die Auswertung für ${active.label ?? "diesen Prognosestand"} beginnt nach dem ersten vollständigen Tag.`
-                  : `Evaluation for ${active.label ?? "this forecast issue"} starts after the first complete day.`}
-          </footer>
+          ${hasData
+            ? html`<footer class="card-footer">
+                ${active.label ? `${active.label} · ` : ""}${evaluatedDays}
+                ${german ? "vollständige Tage" : "complete days"}
+                <span aria-hidden="true">·</span>
+                ${german
+                  ? `letzte ${this._config.days ?? 30} Tage`
+                  : `last ${this._config.days ?? 30} days`}
+              </footer>`
+            : nothing}
         </div>
       </ha-card>
     `;
@@ -433,13 +433,13 @@ export class PvForecastHistoryCard extends LitElement {
     );
     const bounds = energy ? this._energyBounds(values) : this._powerBounds(values);
     const legendNames = [
-      ...(energy ? ["Ist-Ertrag"] : []),
+      ...(energy ? [locale.toLowerCase().startsWith("de") ? "Erzeugte Energie" : "Produced energy"] : []),
       ...view.series.map((item) => item.name),
     ];
     const chartSeries: Array<Record<string, unknown>> = [];
     if (energy) {
       chartSeries.push({
-        name: "Ist-Ertrag",
+        name: locale.toLowerCase().startsWith("de") ? "Erzeugte Energie" : "Produced energy",
         type: "line",
         data: view.days.map(() => 0),
         symbol: "none",
@@ -455,8 +455,8 @@ export class PvForecastHistoryCard extends LitElement {
             show: true,
             color: secondaryText,
             formatter: locale.toLowerCase().startsWith("de")
-              ? "nah am Ist (±10 %)"
-              : "close to actual (±10%)",
+              ? "nah an der Erzeugung (±10 %)"
+              : "close to production (±10%)",
             position: "insideTopRight",
           },
           data: [[{ yAxis: -10 }, { yAxis: 10 }]],
@@ -579,13 +579,13 @@ export class PvForecastHistoryCard extends LitElement {
       rows.push(
         this._tooltipRow(
           actualColor,
-          german ? "Ist-Ertrag" : "Actual yield",
+          german ? "Erzeugte Energie" : "Produced energy",
           new Intl.NumberFormat(locale, {
             minimumFractionDigits: 1,
             maximumFractionDigits: 1,
             signDisplay: "always",
           }).format(0) + " %",
-          german ? "Referenz" : "Reference",
+          german ? "Vergleichswert" : "Reference",
         ),
       );
     }
@@ -602,19 +602,19 @@ export class PvForecastHistoryCard extends LitElement {
           ? ""
           : metric === "power"
             ? german
-              ? "kleiner ist besser"
-              : "lower is better"
+              ? "kleiner = genauer"
+              : "smaller = more accurate"
             : value > 0
               ? german
-                ? "zu hoch"
-                : "too high"
+                ? "mehr erwartet"
+                : "more expected"
               : value < 0
                 ? german
-                  ? "zu niedrig"
-                  : "too low"
+                  ? "weniger erwartet"
+                  : "less expected"
                 : german
-                  ? "genau am Ist"
-                  : "exact";
+                  ? "genau getroffen"
+                  : "matched exactly";
       rows.push(this._tooltipRow(item.color, item.name, shown, note));
     }
     const date = this._longDate(view.days[index]!, locale);
@@ -653,30 +653,30 @@ export class PvForecastHistoryCard extends LitElement {
     const winner = view.series[summary.winnerIndex]!.name;
     if (metric === "energy") {
       return german
-        ? `${winner} lag an ${summary.winnerDays} von ${summary.comparableDays} Tagen näher am tatsächlichen Tagesertrag.`
-        : `${winner} was closer to actual yield on ${summary.winnerDays} of ${summary.comparableDays} days.`;
+        ? `${winner} lag an ${summary.winnerDays} von ${summary.comparableDays} Tagen näher an der tatsächlich erzeugten Energie.`
+        : `${winner} was closer to actual energy production on ${summary.winnerDays} of ${summary.comparableDays} days.`;
     }
     return german
-      ? `${winner} hatte an ${summary.winnerDays} von ${summary.comparableDays} Tagen den kleineren mittleren Leistungsfehler.`
-      : `${winner} had the lower mean power error on ${summary.winnerDays} of ${summary.comparableDays} days.`;
+      ? `${winner} lag an ${summary.winnerDays} von ${summary.comparableDays} Tagen im Leistungsverlauf näher an der Messung.`
+      : `${winner} was closer to measured power across the daily profile on ${summary.winnerDays} of ${summary.comparableDays} days.`;
   }
 
   private _emptyState(german: boolean, evaluable = true): TemplateResult {
     const title = !evaluable
       ? german
-        ? "Für „Aktuell“ gibt es bewusst kein Langzeiturteil"
-        : "Current deliberately has no long-term verdict"
+        ? "Live-Prognosen werden nicht archiviert"
+        : "Live forecasts are not archived"
       : this._loadError
       ? german
-        ? "Tagesdaten konnten nicht geladen werden"
-        : "Daily data could not be loaded"
+        ? "Der Rückblick konnte nicht geladen werden"
+        : "The review could not be loaded"
       : this._loading
         ? german
-          ? "Tagesdaten werden geladen"
-          : "Loading daily data"
+          ? "Rückblick wird geladen"
+          : "Loading review"
         : german
-          ? "Noch keine vollständigen Tagesdaten"
-          : "No complete daily data yet";
+          ? "Der Rückblick startet nach dem ersten vollständigen Tag"
+          : "The review starts after the first complete day";
     return html`<div class="empty-state">
       ${this._calendarIcon()}
       <strong>${title}</strong>
@@ -770,8 +770,8 @@ export class PvForecastHistoryCard extends LitElement {
   ): string {
     const providers = view.series.map((item) => item.name).join(", ");
     return german
-      ? `${metric === "energy" ? "Tagesertragsabweichung" : "Mittlerer Leistungsfehler"} von ${providers} über ${view.days.length} Tage`
-      : `${metric === "energy" ? "Daily yield deviation" : "Mean power error"} for ${providers} across ${view.days.length} days`;
+      ? `${metric === "energy" ? "Abweichung der erzeugten Tagesenergie" : "Genauigkeit des Leistungsverlaufs"} von ${providers} über ${view.days.length} Tage`
+      : `${metric === "energy" ? "Daily energy production deviation" : "Power profile accuracy"} for ${providers} across ${view.days.length} days`;
   }
 
   private _escapeHtml(value: string): string {
@@ -902,6 +902,17 @@ export class PvForecastHistoryCard extends LitElement {
       pointer-events: none;
       transform: translateY(-3px);
       transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+    }
+
+    .info-tooltip strong,
+    .info-tooltip span {
+      display: block;
+    }
+
+    .info-tooltip strong {
+      margin-bottom: 5px;
+      font-size: 13px;
+      line-height: 1.35;
     }
 
     .info-control:hover .info-tooltip,

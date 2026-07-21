@@ -128,7 +128,7 @@ export class PvForecastDayCard extends LitElement {
         {
           type: "expandable",
           name: "actual",
-          title: "Actual production / Ist-Leistung",
+          title: "Measured power / Gemessene Leistung",
           schema: seriesSchema(true, false),
         },
         {
@@ -162,9 +162,9 @@ export class PvForecastDayCard extends LitElement {
 
   static getStubConfig(): Omit<PvForecastDayCardConfig, "type"> {
     return {
-      title: "PV-Leistung heute",
+      title: "Heute: PV-Erzeugung und Prognosen",
       actual: {
-        name: "Ist-Leistung",
+        name: "Gemessene Leistung",
         entity: "sensor.pv_power",
         color: ACTUAL_COLOR,
         unit: "auto",
@@ -240,9 +240,18 @@ export class PvForecastDayCard extends LitElement {
     if (!this._config) return html``;
     const language = this.hass?.locale?.language ?? navigator.language;
     const german = language.toLowerCase().startsWith("de");
-    const title = this._config.title?.trim() || (german ? "PV-Leistung heute" : "PV power today");
+    const title =
+      this._config.title?.trim() ||
+      (german ? "Heute: PV-Erzeugung und Prognosen" : "Today: PV production and forecasts");
     const activeSet = this._activeSnapshotSet();
     const selectedIssue = this._selectedIssue();
+    const issueLabel =
+      activeSet?.label ??
+      (selectedIssue === "Aktuell"
+        ? german
+          ? "Live-Prognose"
+          : "Live forecast"
+        : selectedIssue ?? (german ? "Live-Prognose" : "Live forecast"));
     const { start, end } = localDayBounds();
     const series = this._series(start, end);
 
@@ -252,7 +261,7 @@ export class PvForecastDayCard extends LitElement {
           <header class="card-header">
             <div class="title-block">
               <h2>${title}</h2>
-              <span>${german ? "Prognosestand" : "Forecast issue"}: ${activeSet?.label ?? selectedIssue ?? (german ? "Aktuell" : "Current")}</span>
+              <span>${issueLabel}</span>
             </div>
             <div class="info-control">
               <button
@@ -264,13 +273,19 @@ export class PvForecastDayCard extends LitElement {
                 ${this._infoIcon()}
               </button>
               <span id="day-chart-tooltip" class="info-tooltip" role="tooltip">
-                ${activeSet
-                  ? german
-                    ? `Orange zeigt die gemessene Leistung. Die gestrichelten Prognosen sind unverändert aus dem Stand ${activeSet.label ?? activeSet.value} gespeichert.`
-                    : `Orange shows measured power. The dashed forecasts are the unchanged ${activeSet.label ?? activeSet.value} issue.`
-                  : german
-                    ? "Orange zeigt die gemessene Leistung; gestrichelte Linien zeigen den neuesten, noch veränderlichen Stand der Integrationen."
-                    : "Orange shows measured power; dashed lines show the latest forecast issue, which can still change."}
+                <strong>${german ? "Leistung und Energie" : "Power and energy"}</strong>
+                <span>
+                  ${german
+                    ? "Das Diagramm zeigt Leistung in kW: Orange ist die gemessene Leistung, die gestrichelten Linien sind Prognosen. Die Werte darüber zeigen Energie in kWh: bisher erzeugt und für den gesamten Tag erwartet."
+                    : "The chart shows power in kW: orange is measured power and the dashed lines are forecasts. The values above show energy in kWh: produced so far and expected for the whole day."}
+                  ${activeSet
+                    ? german
+                      ? " Die Prognosen sind unverändert aus dem gewählten Zeitpunkt gespeichert."
+                      : " The forecasts are saved unchanged from the selected time."
+                    : german
+                      ? " Die Live-Prognosen werden von den Integrationen laufend aktualisiert."
+                      : " The live forecasts are continuously updated by the integrations."}
+                </span>
               </span>
             </div>
           </header>
@@ -279,8 +294,8 @@ export class PvForecastDayCard extends LitElement {
           ${this._historyError
             ? html`<p class="chart-note">
                 ${german
-                  ? "Der Ist-Verlauf konnte nicht vollständig geladen werden."
-                  : "The actual production history could not be loaded completely."}
+                  ? "Der gemessene Leistungsverlauf konnte nicht vollständig geladen werden."
+                  : "The measured power profile could not be loaded completely."}
               </p>`
             : nothing}
         </div>
@@ -427,7 +442,7 @@ export class PvForecastDayCard extends LitElement {
         yAxis: {
           type: "value",
           min: 0,
-          name: "kW",
+          name: locale.toLowerCase().startsWith("de") ? "Leistung (kW)" : "Power (kW)",
           nameLocation: "end",
           nameGap: 8,
           nameTextStyle: { color: secondaryText, align: "right", fontSize: 12 },
@@ -522,7 +537,7 @@ export class PvForecastDayCard extends LitElement {
 
     const result: SeriesView[] = [
       {
-        name: actualConfig.name?.trim() || "Ist-Leistung",
+        name: actualConfig.name?.trim() || "Gemessene Leistung",
         color: this._seriesColor(actualConfig.color, ACTUAL_COLOR),
         points: actualPoints.sort((a, b) => a[0] - b[0]),
         kind: "actual",
@@ -585,13 +600,19 @@ export class PvForecastDayCard extends LitElement {
     const actual = readNumericEntity(this.hass, actualEntity);
     const items = [
       {
-        name: activeSet?.actual_energy_label ?? (german ? "Ist bisher" : "Actual so far"),
+        name:
+          activeSet?.actual_energy_label ??
+          (german ? "Bisher erzeugt" : "Produced so far"),
         color: series.find((item) => item.kind === "actual")?.color ?? ACTUAL_COLOR,
         value: actual,
       },
       ...series
         .filter((item) => item.kind === "forecast")
-        .map((item) => ({ name: item.name, color: item.color, value: item.energy })),
+        .map((item) => ({
+          name: `${item.name} ${german ? "erwartet" : "expected"}`,
+          color: item.color,
+          value: item.energy,
+        })),
     ];
     const number = new Intl.NumberFormat(locale, {
       minimumFractionDigits: 1,
@@ -662,7 +683,7 @@ export class PvForecastDayCard extends LitElement {
     return `<div style="min-width:260px;padding:7px 0 8px;color:inherit;">
       <div style="font-weight:600;padding:0 10px 6px;border-bottom:1px solid ${this._escapeHtml(divider)};margin-bottom:3px;">${this._escapeHtml(time)}</div>
       ${rows}
-      <div style="color:${this._escapeHtml(secondaryText)};font-size:11px;padding:5px 10px 0;">kW</div>
+      <div style="color:${this._escapeHtml(secondaryText)};font-size:11px;padding:5px 10px 0;">${locale.toLowerCase().startsWith("de") ? "Leistung in kW" : "Power in kW"}</div>
     </div>`;
   }
 
@@ -710,7 +731,7 @@ export class PvForecastDayCard extends LitElement {
   private _chartAriaLabel(german: boolean): string {
     if (!this._config) return "";
     const names = [
-      this._config.actual.name || (german ? "Ist-Leistung" : "Actual power"),
+      this._config.actual.name || (german ? "Gemessene Leistung" : "Measured power"),
       this._config.forecast_1.name || (german ? "Prognose 1" : "Forecast 1"),
       this._config.forecast_2?.entity
         ? this._config.forecast_2.name || (german ? "Prognose 2" : "Forecast 2")
@@ -843,6 +864,17 @@ export class PvForecastDayCard extends LitElement {
       pointer-events: none;
       transform: translateY(-3px);
       transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+    }
+
+    .info-tooltip strong,
+    .info-tooltip span {
+      display: block;
+    }
+
+    .info-tooltip strong {
+      margin-bottom: 5px;
+      font-size: 13px;
+      line-height: 1.35;
     }
 
     .info-control:hover .info-tooltip,

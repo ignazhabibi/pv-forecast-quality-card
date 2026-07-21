@@ -37,11 +37,11 @@ options:
     label: Vorabend
     caption: "23:55"
   - value: "07:00"
-    label: Morgen
-    caption: "07:00"
+    label: Heute 07:00
+    caption: gespeichert
   - value: Aktuell
-    label: Aktuell
-    caption: live
+    label: Live
+    caption: ändert sich
 grid_options:
   columns: full
   rows: auto
@@ -70,11 +70,11 @@ The day card loads the actual entity's recorder history, averages it into five-m
 
 ```yaml
 type: custom:pv-forecast-day-card
-title: PV-Leistung heute
+title: "Heute: PV-Erzeugung und Prognosen"
 selection_entity: input_select.pv_vergleich_prognosestand
 actual_energy_entity: input_number.pv_vergleich_ist_energie
 actual:
-  name: Ist-Leistung
+  name: Gemessene Leistung
   entity: sensor.wechselrichter_solar_power
   color: "#F59E0B"
   unit: W
@@ -96,7 +96,7 @@ forecast_2:
   value_key: watts
 snapshot_sets:
   - value: Day-ahead
-    label: Vorabend · 23:55
+    label: Prognose vom Vorabend · 23:55
     snapshot_entity: input_text.pv_vergleich_snapshot_aktiv
     forecast_1_entities:
       - input_text.pv_vergleich_solcast_aktiv_1
@@ -105,9 +105,9 @@ snapshot_sets:
       - input_text.pv_vergleich_helios_aktiv_1
       - input_text.pv_vergleich_helios_aktiv_2
     actual_energy_entity: input_number.pv_vergleich_ist_energie
-    actual_energy_label: Ist bisher
+    actual_energy_label: Bisher erzeugt
   - value: "07:00"
-    label: Morgen · 07:00
+    label: Prognose von heute · 07:00
     snapshot_entity: input_text.pv_vergleich_snapshot_0700
     forecast_1_entities:
       - input_text.pv_vergleich_solcast_0700_1
@@ -116,7 +116,7 @@ snapshot_sets:
       - input_text.pv_vergleich_helios_0700_1
       - input_text.pv_vergleich_helios_0700_2
     actual_energy_entity: input_number.pv_vergleich_ist_energie_0700
-    actual_energy_label: Ist seit 07:00
+    actual_energy_label: Seit 07:00 erzeugt
 grid_options:
   columns: full
   rows: auto
@@ -130,7 +130,7 @@ The history card reads permanent daily recorder statistics from the backend metr
 
 ```yaml
 type: custom:pv-forecast-history-card
-title: Prognosequalität · 30 Tage
+title: Prognosegenauigkeit · 30 Tage
 days: 30
 day_offset: -1
 default_metric: energy
@@ -148,9 +148,9 @@ provider_2:
 selection_entity: input_select.pv_vergleich_prognosestand
 contexts:
   - value: Day-ahead
-    label: Vorabend
+    label: Prognose vom Vorabend
   - value: "07:00"
-    label: Morgen · 07:00
+    label: Prognose von heute · 07:00
     provider_1:
       mae_entity: sensor.pv_vergleich_solcast_mae_tag_0700
       energy_entity: sensor.pv_vergleich_solcast_energieabweichung_prozent_tag_0700
@@ -158,7 +158,7 @@ contexts:
       mae_entity: sensor.pv_vergleich_helios_mae_tag_0700
       energy_entity: sensor.pv_vergleich_helios_energieabweichung_prozent_tag_0700
   - value: Aktuell
-    label: Aktuell
+    label: Live-Prognose
     evaluable: false
 grid_options:
   columns: full
@@ -232,7 +232,7 @@ provider_1:
 
 ### Power accuracy
 
-The card expects a mean absolute error (MAE) entity in kW. For each completed interval, take the absolute distance between forecast and actual average power, then average those distances. Lower is better. A value of `1.40 kW` is a power distance, not energy per hour; over a 15-minute interval it corresponds to `0.35 kWh` of energy distance.
+The card expects a mean absolute error (MAE) entity in kW. For each completed interval, take the absolute distance between forecast and actual average power, then average those distances. Lower is better. A value of `1.40 kW` is a power distance, not energy per hour. If a constant 1.40 kW gap lasted for a complete 15-minute interval, it would amount to 0.35 kWh, but MAE itself does not add up energy; the energy card evaluates that separately.
 
 ### Yield deviation
 

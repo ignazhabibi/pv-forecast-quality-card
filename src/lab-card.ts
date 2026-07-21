@@ -17,8 +17,8 @@ export interface PvForecastLabCardConfig {
 
 const DEFAULT_OPTIONS: LabOptionConfig[] = [
   { value: "Day-ahead", label: "Vorabend", caption: "23:55" },
-  { value: "07:00", label: "Morgen", caption: "07:00" },
-  { value: "Aktuell", label: "Aktuell", caption: "live" },
+  { value: "07:00", label: "Heute 07:00", caption: "gespeichert" },
+  { value: "Aktuell", label: "Live", caption: "ändert sich" },
 ];
 
 export class PvForecastLabCard extends LitElement {
@@ -38,7 +38,7 @@ export class PvForecastLabCard extends LitElement {
       ],
       computeLabel: (schema: { name?: string }) =>
         schema.name === "entity"
-          ? "Forecast issue selector / Prognosestand-Auswahl"
+          ? "Forecast time selector / Prognosezeitpunkt-Auswahl"
           : "Title / Titel",
     };
   }
@@ -83,7 +83,7 @@ export class PvForecastLabCard extends LitElement {
           <div class="heading">
             <div>
               <h1>${title}</h1>
-              <p>${german ? "Prognosestand wählen" : "Choose forecast issue"}</p>
+              <p>${german ? "Prognosezeitpunkt wählen" : "Choose forecast time"}</p>
             </div>
             <div class="info-control">
               <button
@@ -96,13 +96,13 @@ export class PvForecastLabCard extends LitElement {
               </button>
               <span id="lab-tooltip" class="info-tooltip" role="tooltip">
                 ${german
-                  ? "Vorabend und 07:00 sind eingefrorene Prognosen und werden getrennt gegen die echte Erzeugung geprüft. Aktuell zeigt den neuesten, noch veränderlichen Stand ohne Qualitätsurteil."
-                  : "Day-ahead and 07:00 are frozen issues evaluated separately against actual production. Current shows the latest changing forecast without a quality verdict."}
+                  ? "Vorabend und heute 07:00 sind gespeicherte Prognosen. So bleibt ihr ursprünglicher Stand erhalten und lässt sich fair mit der tatsächlichen Erzeugung vergleichen. Live zeigt die neuesten, noch veränderlichen Prognosen und erhält deshalb kein Qualitätsurteil."
+                  : "Previous evening and today at 07:00 are saved forecasts. Their original state is preserved for a fair comparison with actual production. Live shows the newest, still-changing forecasts and therefore receives no quality verdict."}
               </span>
             </div>
           </div>
 
-          <div class="timeline" role="group" aria-label=${german ? "Prognosestand" : "Forecast issue"}>
+          <div class="timeline" role="group" aria-label=${german ? "Prognosezeitpunkt" : "Forecast time"}>
             ${options.map((option) => {
               const selected = option.value === current;
               return html`<button

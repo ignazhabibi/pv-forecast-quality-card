@@ -54,7 +54,7 @@ export class PvForecastQualityCard extends LitElement {
               mode: "dropdown",
               options: [
                 { value: "power", label: "Power accuracy / Leistungsgenauigkeit" },
-                { value: "energy", label: "Energy deviation / Ertragsabweichung" },
+                { value: "energy", label: "Daily energy accuracy / Genauigkeit der Tagesenergie" },
               ],
             },
           },
@@ -127,8 +127,8 @@ export class PvForecastQualityCard extends LitElement {
           color: "Color / Farbe",
           interval_count_entity: "Interval counter / Intervallzähler",
           snapshot_entity: "Snapshot status entity / Snapshot-Status",
-          actual_energy_entity: "Actual energy / Ist-Energie",
-          selection_entity: "Forecast issue selector / Prognosestand-Auswahl",
+          actual_energy_entity: "Produced energy / Erzeugte Energie",
+          selection_entity: "Forecast time selector / Prognosezeitpunkt-Auswahl",
           minimum_intervals: "Minimum intervals / Mindestintervalle",
         };
         return labels[schema.name ?? ""] ?? schema.name ?? "";
@@ -212,6 +212,8 @@ export class PvForecastQualityCard extends LitElement {
     const snapshot = parseSnapshot(snapshotValue);
     const snapshotStale = active.evaluable && isSnapshotStale(snapshot, this._todayKey());
     const noCompletedIntervals = intervalCount !== null && intervalCount <= 0;
+    const showIntervalStatus =
+      active.evaluable && intervalCount !== null && intervalCount > 0;
     const preliminary =
       intervalCount !== null && intervalCount > 0 && intervalCount < minimumIntervals;
     const comparison =
@@ -223,7 +225,7 @@ export class PvForecastQualityCard extends LitElement {
       : snapshotStale
         ? copy.staleSnapshot
         : noCompletedIntervals
-          ? copy.waitingIntervals
+          ? copy.unavailableHint
           : undefined;
     const tooltipTitle =
       metric === "power" ? copy.powerTooltipTitle : copy.energyTooltipTitle;
@@ -267,10 +269,10 @@ export class PvForecastQualityCard extends LitElement {
           ${this._chart(metric, readings, scale, locale, copy)}
 
           <footer class="card-footer">
-            ${active.evaluable
+            ${showIntervalStatus
               ? html`<span>${this._intervalStatus(intervalCount, minimumIntervals, copy)}</span>`
               : nothing}
-            ${active.evaluable && active.label
+            ${showIntervalStatus && active.label
               ? html`<span class="footer-separator" aria-hidden="true">·</span>`
               : nothing}
             ${active.label ? html`<span>${active.label}</span>` : nothing}
@@ -411,7 +413,7 @@ export class PvForecastQualityCard extends LitElement {
 
     return html`<section class="verdict">
       <div class="winner-line" aria-label=${copy.bestMatch(winner.name)}>
-        ${preliminary ? nothing : this._checkIcon()}<strong class="verdict-value">${winner.name}</strong>
+        ${preliminary ? nothing : this._checkIcon()}<strong class="verdict-value">${copy.bestMatch(winner.name)}</strong>
       </div>
       <span class="verdict-support">${support}</span>
     </section>`;
@@ -437,7 +439,7 @@ export class PvForecastQualityCard extends LitElement {
       ${readings.map((reading) => this._chartRow(metric, reading, scale, locale, copy))}
       <div class="axis" aria-hidden="true">
         ${metric === "power"
-          ? html`<span>${copy.idealZero}</span><span>${this._formatAxis(scale, locale)} kW</span>`
+          ? html`<span>${copy.idealZero}</span><span>${this._formatAxis(scale, locale)} kW · ${copy.greaterDeviation}</span>`
           : html`<span>${copy.low}</span><span>${copy.idealZero}</span><span>${copy.high}</span>`}
       </div>
     </div>`;
@@ -590,7 +592,7 @@ export class PvForecastQualityCard extends LitElement {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    return copy.powerExplanation(number.format(exampleValue), number.format(exampleValue * 0.25));
+    return copy.powerExplanation(number.format(exampleValue));
   }
 
   private _infoIcon(): TemplateResult {
