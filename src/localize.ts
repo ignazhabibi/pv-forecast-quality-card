@@ -25,6 +25,12 @@ export interface CardCopy {
   firstTrend: (count: number, minimum: number) => string;
   waitingIntervals: string;
   dayAhead: string;
+  morning: string;
+  current: string;
+  earlyVerdict: string;
+  liveUnavailable: string;
+  forecastEnergy: string;
+  actualEnergy: string;
   testRun: string;
   providerOne: string;
   providerTwo: string;
@@ -57,6 +63,12 @@ const de: CardCopy = {
   firstTrend: (count, minimum) => `${count}/${minimum} Intervalle · erste Tendenz`,
   waitingIntervals: "Kein Intervall",
   dayAhead: "Day-ahead",
+  morning: "Stand 07:00",
+  current: "Aktuell",
+  earlyVerdict: "Noch zu früh für ein Urteil",
+  liveUnavailable: "Der aktuelle Stand verändert sich laufend und wird erst als fester Prognosestand fair bewertet.",
+  forecastEnergy: "Prognose",
+  actualEnergy: "Ist",
   testRun: "Testlauf",
   providerOne: "Anbieter 1",
   providerTwo: "Anbieter 2",
@@ -89,6 +101,12 @@ const en: CardCopy = {
   firstTrend: (count, minimum) => `${count}/${minimum} intervals · early trend`,
   waitingIntervals: "No interval yet",
   dayAhead: "Day-ahead",
+  morning: "07:00 issue",
+  current: "Current",
+  earlyVerdict: "Too early for a verdict",
+  liveUnavailable: "The current issue keeps changing and can only be evaluated fairly once it is stored as a fixed forecast issue.",
+  forecastEnergy: "Forecast",
+  actualEnergy: "Actual",
   testRun: "Test run",
   providerOne: "Provider 1",
   providerTwo: "Provider 2",

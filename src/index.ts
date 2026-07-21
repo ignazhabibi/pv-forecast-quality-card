@@ -2,10 +2,12 @@
 import { PvForecastQualityCard } from "./card";
 import { PvForecastDayCard } from "./day-card";
 import { PvForecastHistoryCard } from "./history-card";
+import { PvForecastLabCard } from "./lab-card";
 
 const CARD_TAG = "pv-forecast-quality-card";
 const DAY_CARD_TAG = "pv-forecast-day-card";
 const HISTORY_CARD_TAG = "pv-forecast-history-card";
+const LAB_CARD_TAG = "pv-forecast-lab-card";
 
 if (!customElements.get(CARD_TAG)) {
   customElements.define(CARD_TAG, PvForecastQualityCard);
@@ -19,12 +21,24 @@ if (!customElements.get(HISTORY_CARD_TAG)) {
   customElements.define(HISTORY_CARD_TAG, PvForecastHistoryCard);
 }
 
+if (!customElements.get(LAB_CARD_TAG)) {
+  customElements.define(LAB_CARD_TAG, PvForecastLabCard);
+}
+
 window.customCards = window.customCards ?? [];
 window.customCards.push({
   type: CARD_TAG,
   name: "PV Forecast Quality Card",
   description:
     "Understand and compare PV forecast accuracy against actual production in a Home Assistant Sections view.",
+  preview: true,
+  documentationURL: "https://github.com/ignazhabibi/pv-forecast-quality-card",
+});
+
+window.customCards.push({
+  type: LAB_CARD_TAG,
+  name: "PV Forecast Lab Card",
+  description: "Select a fixed forecast issue for all cards in a PV forecast lab dashboard.",
   preview: true,
   documentationURL: "https://github.com/ignazhabibi/pv-forecast-quality-card",
 });
@@ -48,7 +62,7 @@ window.customCards.push({
 });
 
 console.info(
-  "%c PV FORECAST QUALITY CARD %c v0.3.0 ",
+  "%c PV FORECAST QUALITY CARD %c v0.4.0 ",
   "color: white; background: #111827; font-weight: 700; padding: 3px 6px; border-radius: 4px 0 0 4px;",
   "color: #111827; background: #e5e7eb; font-weight: 600; padding: 3px 6px; border-radius: 0 4px 4px 0;",
 );

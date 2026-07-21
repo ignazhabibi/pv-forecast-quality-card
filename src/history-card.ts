@@ -42,6 +42,14 @@ interface HistoryProviderConfig {
   energy_entity?: string;
 }
 
+interface HistoryContextConfig {
+  value: string;
+  label?: string;
+  provider_1?: HistoryProviderConfig;
+  provider_2?: HistoryProviderConfig;
+  evaluable?: boolean;
+}
+
 export interface PvForecastHistoryCardConfig {
   type: string;
   title?: string;
@@ -51,6 +59,8 @@ export interface PvForecastHistoryCardConfig {
   actual_color?: string;
   provider_1: HistoryProviderConfig;
   provider_2?: HistoryProviderConfig;
+  selection_entity?: string;
+  contexts?: HistoryContextConfig[];
 }
 
 type StatisticsResponse = Record<string, StatisticValue[]>;
@@ -194,6 +204,11 @@ export class PvForecastHistoryCard extends LitElement {
       default_metric: config.default_metric === "power" ? "power" : "energy",
       provider_1: { ...config.provider_1 },
       provider_2: config.provider_2 ? { ...config.provider_2 } : undefined,
+      contexts: config.contexts?.map((context) => ({
+        ...context,
+        provider_1: context.provider_1 ? { ...context.provider_1 } : undefined,
+        provider_2: context.provider_2 ? { ...context.provider_2 } : undefined,
+      })),
     };
     this._selectedMetric = this._config.default_metric ?? "energy";
     this._loadedSignature = undefined;
@@ -231,7 +246,8 @@ export class PvForecastHistoryCard extends LitElement {
       this._config.title?.trim() ||
       (german ? "Prognosequalität · 30 Tage" : "Forecast quality · 30 days");
     const view = this._metricView(this._selectedMetric);
-    const hasData = view.series.some((item) => item.values.size > 0);
+    const active = this._activeContext();
+    const hasData = active.evaluable && view.series.some((item) => item.values.size > 0);
     const evaluatedDays = this._evaluatedDays(view);
 
     return html`
@@ -284,18 +300,22 @@ export class PvForecastHistoryCard extends LitElement {
             role="img"
             aria-label=${this._chartAriaLabel(view, this._selectedMetric, german)}
           ></div>
-          ${!hasData ? this._emptyState(german) : nothing}
+          ${!hasData ? this._emptyState(german, active.evaluable) : nothing}
 
           <footer class="card-footer">
             ${hasData
-              ? html`${evaluatedDays} ${german ? "vollständige Tage" : "complete days"}
+              ? html`${active.label ? `${active.label} · ` : ""}${evaluatedDays} ${german ? "vollständige Tage" : "complete days"}
                   <span aria-hidden="true">·</span>
                   ${german
                     ? `letzte ${this._config.days ?? 30} Tage`
                     : `last ${this._config.days ?? 30} days`}`
-              : german
-                ? "Die Auswertung beginnt nach dem ersten vollständigen Day-ahead-Tag."
-                : "Evaluation starts after the first complete day-ahead day."}
+              : !active.evaluable
+                ? german
+                  ? "Der laufend aktualisierte Stand wird nicht als feste Prognose archiviert."
+                  : "The continuously updated issue is not archived as a fixed forecast."
+                : german
+                  ? `Die Auswertung für ${active.label ?? "diesen Prognosestand"} beginnt nach dem ersten vollständigen Tag.`
+                  : `Evaluation for ${active.label ?? "this forecast issue"} starts after the first complete day.`}
           </footer>
         </div>
       </ha-card>
@@ -360,7 +380,8 @@ export class PvForecastHistoryCard extends LitElement {
     const days = completeDayKeys(this._config?.days ?? 30);
     const allowedDays = new Set(days);
     const entityKey = metric === "energy" ? "energy_entity" : "mae_entity";
-    const providers = [this._config?.provider_1, this._config?.provider_2].filter(
+    const active = this._activeContext();
+    const providers = [active.provider_1, active.provider_2].filter(
       (provider): provider is HistoryProviderConfig => Boolean(provider),
     );
     const fallbackNames = ["Solcast", "Helios Forecast"];
@@ -640,8 +661,12 @@ export class PvForecastHistoryCard extends LitElement {
       : `${winner} had the lower mean power error on ${summary.winnerDays} of ${summary.comparableDays} days.`;
   }
 
-  private _emptyState(german: boolean): TemplateResult {
-    const title = this._loadError
+  private _emptyState(german: boolean, evaluable = true): TemplateResult {
+    const title = !evaluable
+      ? german
+        ? "Für „Aktuell“ gibt es bewusst kein Langzeiturteil"
+        : "Current deliberately has no long-term verdict"
+      : this._loadError
       ? german
         ? "Tagesdaten konnten nicht geladen werden"
         : "Daily data could not be loaded"
@@ -677,13 +702,35 @@ export class PvForecastHistoryCard extends LitElement {
   }
 
   private _entityIds(): string[] {
-    if (!this._config) return [];
+    const active = this._activeContext();
     return [
-      this._config.provider_1.mae_entity,
-      this._config.provider_1.energy_entity,
-      this._config.provider_2?.mae_entity,
-      this._config.provider_2?.energy_entity,
+      active.provider_1.mae_entity,
+      active.provider_1.energy_entity,
+      active.provider_2?.mae_entity,
+      active.provider_2?.energy_entity,
     ].filter((entity): entity is string => Boolean(entity));
+  }
+
+  private _activeContext(): {
+    provider_1: HistoryProviderConfig;
+    provider_2?: HistoryProviderConfig;
+    label?: string;
+    evaluable: boolean;
+  } {
+    if (!this._config) return { provider_1: {}, evaluable: false };
+    const selected = this._config.selection_entity
+      ? this.hass?.states[this._config.selection_entity]?.state
+      : undefined;
+    const context = this._config.contexts?.find((item) => item.value === selected);
+    return {
+      provider_1: { ...this._config.provider_1, ...context?.provider_1 },
+      provider_2:
+        this._config.provider_2 || context?.provider_2
+          ? { ...this._config.provider_2, ...context?.provider_2 }
+          : undefined,
+      label: context?.label,
+      evaluable: context?.evaluable !== false,
+    };
   }
 
   private _signature(): string {

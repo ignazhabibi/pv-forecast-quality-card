@@ -15,6 +15,66 @@ export interface CompactHistoryState {
   lc?: number;
 }
 
+export function snapshotValues(chunks: string[], scale = 100): number[] {
+  if (!Number.isFinite(scale) || scale <= 0) return [];
+  return chunks
+    .flatMap((chunk) => chunk.split(","))
+    .map((value) => Number(value) / scale)
+    .filter((value) => Number.isFinite(value))
+    .map((value) => Math.max(0, value));
+}
+
+export function snapshotPoints(
+  chunks: string[],
+  start: Date,
+  end: Date,
+  scale = 100,
+  sourceStepMs = 15 * 60 * 1000,
+  outputStepMs = 5 * 60 * 1000,
+): ChartPoint[] {
+  const values = snapshotValues(chunks, scale);
+  const source = values.map<ChartPoint>((value, index) => [
+    start.getTime() + index * sourceStepMs,
+    value,
+  ]);
+  if (source.length < 2) return source;
+
+  const result: ChartPoint[] = [];
+  const endMs = Math.min(end.getTime(), source.at(-1)![0] + sourceStepMs);
+  for (let timestamp = start.getTime(); timestamp < endMs; timestamp += outputStepMs) {
+    const index = Math.min(
+      source.length - 1,
+      Math.max(0, Math.floor((timestamp - start.getTime()) / sourceStepMs)),
+    );
+    const lower = source[index];
+    const upper = source[Math.min(source.length - 1, index + 1)];
+    if (!lower || !upper) continue;
+    const ratio = upper[0] === lower[0] ? 0 : (timestamp - lower[0]) / (upper[0] - lower[0]);
+    result.push([timestamp, lower[1] + (upper[1] - lower[1]) * ratio]);
+  }
+  return result;
+}
+
+export function snapshotEnergy(chunks: string[], scale = 100, intervalHours = 0.25): number | null {
+  const values = snapshotValues(chunks, scale);
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value * intervalHours, 0);
+}
+
+export function powerCurveEnergy(points: ChartPoint[]): number | null {
+  if (points.length < 2) return null;
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    if (!previous || !current) continue;
+    const hours = (current[0] - previous[0]) / 3_600_000;
+    if (hours <= 0 || hours > 1) continue;
+    total += ((previous[1] + current[1]) / 2) * hours;
+  }
+  return Number.isFinite(total) ? total : null;
+}
+
 const INVALID_STATES = new Set(["", "unknown", "unavailable", "none", "null"]);
 
 export function localDayBounds(reference = new Date()): { start: Date; end: Date } {

@@ -15,12 +15,15 @@ import {
   forecastPoints,
   localDayBounds,
   nearestPointValue,
+  powerCurveEnergy,
   powerFactor,
+  snapshotEnergy,
+  snapshotPoints,
   type ChartPoint,
   type CompactHistoryState,
   type PowerUnit,
 } from "./day-data";
-import { safeColor } from "./metrics";
+import { isSnapshotStale, parseSnapshot, readNumericEntity, safeColor } from "./metrics";
 import type { HomeAssistant } from "./types";
 
 use([
@@ -48,12 +51,26 @@ interface DaySeriesConfig {
   value_key?: string;
 }
 
+interface SnapshotSetConfig {
+  value: string;
+  label?: string;
+  snapshot_entity: string;
+  forecast_1_entities: string[];
+  forecast_2_entities?: string[];
+  value_scale?: number;
+  actual_energy_entity?: string;
+  actual_energy_label?: string;
+}
+
 export interface PvForecastDayCardConfig {
   type: string;
   title?: string;
   actual: DaySeriesConfig;
   forecast_1: DaySeriesConfig;
   forecast_2?: DaySeriesConfig;
+  selection_entity?: string;
+  actual_energy_entity?: string;
+  snapshot_sets?: SnapshotSetConfig[];
 }
 
 type HistoryStates = Record<string, CompactHistoryState[]>;
@@ -63,6 +80,7 @@ interface SeriesView {
   color: string;
   points: ChartPoint[];
   kind: "actual" | "forecast";
+  energy: number | null;
 }
 
 export class PvForecastDayCard extends LitElement {
@@ -183,6 +201,13 @@ export class PvForecastDayCard extends LitElement {
       actual: { ...config.actual },
       forecast_1: { ...config.forecast_1 },
       forecast_2: config.forecast_2 ? { ...config.forecast_2 } : undefined,
+      snapshot_sets: config.snapshot_sets?.map((set) => ({
+        ...set,
+        forecast_1_entities: [...set.forecast_1_entities],
+        forecast_2_entities: set.forecast_2_entities
+          ? [...set.forecast_2_entities]
+          : undefined,
+      })),
     };
     this._loadedDay = undefined;
   }
@@ -216,12 +241,19 @@ export class PvForecastDayCard extends LitElement {
     const language = this.hass?.locale?.language ?? navigator.language;
     const german = language.toLowerCase().startsWith("de");
     const title = this._config.title?.trim() || (german ? "PV-Leistung heute" : "PV power today");
+    const activeSet = this._activeSnapshotSet();
+    const selectedIssue = this._selectedIssue();
+    const { start, end } = localDayBounds();
+    const series = this._series(start, end);
 
     return html`
       <ha-card>
         <div class="card-content">
           <header class="card-header">
-            <h2>${title}</h2>
+            <div class="title-block">
+              <h2>${title}</h2>
+              <span>${german ? "Prognosestand" : "Forecast issue"}: ${activeSet?.label ?? selectedIssue ?? (german ? "Aktuell" : "Current")}</span>
+            </div>
             <div class="info-control">
               <button
                 class="info-button"
@@ -232,12 +264,17 @@ export class PvForecastDayCard extends LitElement {
                 ${this._infoIcon()}
               </button>
               <span id="day-chart-tooltip" class="info-tooltip" role="tooltip">
-                ${german
-                  ? "Orange zeigt die gemessene Leistung; gestrichelte Linien zeigen die aktuell von den Integrationen gemeldeten Prognosen. Die Qualitätskarten werten dagegen den gespeicherten Day-ahead-Snapshot aus."
-                  : "Orange shows measured power; dashed lines show the forecasts currently reported by the integrations. The quality cards evaluate the stored day-ahead snapshot instead."}
+                ${activeSet
+                  ? german
+                    ? `Orange zeigt die gemessene Leistung. Die gestrichelten Prognosen sind unverändert aus dem Stand ${activeSet.label ?? activeSet.value} gespeichert.`
+                    : `Orange shows measured power. The dashed forecasts are the unchanged ${activeSet.label ?? activeSet.value} issue.`
+                  : german
+                    ? "Orange zeigt die gemessene Leistung; gestrichelte Linien zeigen den neuesten, noch veränderlichen Stand der Integrationen."
+                    : "Orange shows measured power; dashed lines show the latest forecast issue, which can still change."}
               </span>
             </div>
           </header>
+          ${this._energySummary(series, activeSet, language, german)}
           <div class="chart" role="img" aria-label=${this._chartAriaLabel(german)}></div>
           ${this._historyError
             ? html`<p class="chart-note">
@@ -489,8 +526,15 @@ export class PvForecastDayCard extends LitElement {
         color: this._seriesColor(actualConfig.color, ACTUAL_COLOR),
         points: actualPoints.sort((a, b) => a[0] - b[0]),
         kind: "actual",
+        energy: null,
       },
     ];
+
+    const activeSet = this._activeSnapshotSet();
+    const snapshot = activeSet
+      ? parseSnapshot(this.hass.states[activeSet.snapshot_entity]?.state)
+      : undefined;
+    const validSnapshot = activeSet && snapshot && !isSnapshotStale(snapshot, this._todayKeyIso());
 
     const forecasts = [
       [this._config.forecast_1, PRIMARY_FORECAST_COLOR, "Solcast"],
@@ -499,20 +543,85 @@ export class PvForecastDayCard extends LitElement {
     for (const [config, fallbackColor, fallbackName] of forecasts) {
       if (!config?.entity) continue;
       const stateObj = this.hass.states[config.entity];
+      const snapshotEntities =
+        config === this._config.forecast_1
+          ? activeSet?.forecast_1_entities
+          : activeSet?.forecast_2_entities;
+      const chunks = snapshotEntities?.map((entity) => this.hass?.states[entity]?.state ?? "") ?? [];
+      const points = validSnapshot && chunks.length
+        ? snapshotPoints(chunks, start, end, activeSet.value_scale ?? 100)
+        : activeSet
+          ? []
+          : forecastPoints(
+              stateObj?.attributes,
+              config,
+              stateObj?.attributes.unit_of_measurement,
+              start,
+              end,
+            );
       result.push({
         name: config.name?.trim() || fallbackName,
         color: this._seriesColor(config.color, fallbackColor),
-        points: forecastPoints(
-          stateObj?.attributes,
-          config,
-          stateObj?.attributes.unit_of_measurement,
-          start,
-          end,
-        ),
+        points,
         kind: "forecast",
+        energy:
+          validSnapshot && chunks.length
+            ? snapshotEnergy(chunks, activeSet.value_scale ?? 100)
+            : activeSet
+              ? null
+              : powerCurveEnergy(points),
       });
     }
     return result;
+  }
+
+  private _energySummary(
+    series: SeriesView[],
+    activeSet: SnapshotSetConfig | undefined,
+    locale: string,
+    german: boolean,
+  ): TemplateResult {
+    const actualEntity = activeSet?.actual_energy_entity ?? this._config?.actual_energy_entity;
+    const actual = readNumericEntity(this.hass, actualEntity);
+    const items = [
+      {
+        name: activeSet?.actual_energy_label ?? (german ? "Ist bisher" : "Actual so far"),
+        color: series.find((item) => item.kind === "actual")?.color ?? ACTUAL_COLOR,
+        value: actual,
+      },
+      ...series
+        .filter((item) => item.kind === "forecast")
+        .map((item) => ({ name: item.name, color: item.color, value: item.energy })),
+    ];
+    const number = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+    return html`<div class="energy-summary" aria-label=${german ? "Energie in Kilowattstunden" : "Energy in kilowatt-hours"}>
+      ${items.map(
+        (item) => html`<span style=${`--series-color:${item.color}`}>
+          <i aria-hidden="true"></i>
+          <span>${item.name}</span>
+          <strong>${item.value === null ? "–" : `${number.format(item.value)} kWh`}</strong>
+        </span>`,
+      )}
+    </div>`;
+  }
+
+  private _selectedIssue(): string | undefined {
+    return this._config?.selection_entity
+      ? this.hass?.states[this._config.selection_entity]?.state
+      : undefined;
+  }
+
+  private _activeSnapshotSet(): SnapshotSetConfig | undefined {
+    const selected = this._selectedIssue();
+    return this._config?.snapshot_sets?.find((set) => set.value === selected);
+  }
+
+  private _todayKeyIso(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   }
 
   private _tooltip(
@@ -650,6 +759,18 @@ export class PvForecastDayCard extends LitElement {
       gap: 16px;
     }
 
+    .title-block {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .title-block > span {
+      color: var(--secondary-text-color);
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
     h2 {
       min-width: 0;
       margin: 0;
@@ -732,6 +853,37 @@ export class PvForecastDayCard extends LitElement {
       width: 100%;
       height: 360px;
       min-height: 280px;
+    }
+
+    .energy-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      min-height: 24px;
+      padding: 4px 0 2px;
+      color: var(--secondary-text-color);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .energy-summary > span {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .energy-summary i {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border-radius: 50%;
+      background: var(--series-color);
+    }
+
+    .energy-summary strong {
+      color: var(--primary-text-color);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
     }
 
     .chart-note {

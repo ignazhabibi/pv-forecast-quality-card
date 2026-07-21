@@ -4,6 +4,9 @@ import {
   aggregateHistory,
   forecastPoints,
   nearestPointValue,
+  powerCurveEnergy,
+  snapshotEnergy,
+  snapshotPoints,
 } from "../src/day-data";
 
 const start = new Date(2026, 6, 20, 0, 0, 0, 0);
@@ -69,5 +72,24 @@ describe("day chart data helpers", () => {
     const points: [number, number][] = [[new Date(2026, 6, 20, 12, 0).getTime(), 4.2]];
     expect(nearestPointValue(points, new Date(2026, 6, 20, 12, 2).getTime(), 150_000)).toBe(4.2);
     expect(nearestPointValue(points, new Date(2026, 6, 20, 12, 5).getTime(), 150_000)).toBeNull();
+  });
+
+  it("decodes a frozen 15-minute snapshot and preserves its kWh total", () => {
+    const chunks = ["0,100,200", "300"];
+    const points = snapshotPoints(chunks, start, end, 100);
+
+    expect(points[0]).toEqual([start.getTime(), 0]);
+    expect(points[3]?.[1]).toBeCloseTo(1);
+    expect(snapshotEnergy(chunks, 100)).toBeCloseTo(1.5);
+  });
+
+  it("integrates live forecast power curves into energy", () => {
+    const points: [number, number][] = [
+      [start.getTime(), 0],
+      [start.getTime() + 30 * 60 * 1000, 2],
+      [start.getTime() + 60 * 60 * 1000, 0],
+    ];
+
+    expect(powerCurveEnergy(points)).toBeCloseTo(1);
   });
 });

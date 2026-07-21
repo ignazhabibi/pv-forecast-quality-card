@@ -23,6 +23,17 @@ import type {
 const DEFAULT_PRIMARY_COLOR = "#22C55E";
 const DEFAULT_COMPARISON_COLOR = "#7C4DFF";
 
+interface ActiveQualityConfig {
+  provider_1: ProviderConfig;
+  provider_2?: ProviderConfig;
+  interval_count_entity?: string;
+  snapshot_entity?: string;
+  actual_energy_entity?: string;
+  label?: string;
+  value?: string;
+  evaluable: boolean;
+}
+
 export class PvForecastQualityCard extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -56,19 +67,11 @@ export class PvForecastQualityCard extends LitElement {
           schema: [
             { name: "name", selector: { text: {} } },
             { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
-            { name: "color", selector: { text: {} } },
             {
-              name: "marker",
-              selector: {
-                select: {
-                  mode: "dropdown",
-                  options: [
-                    { value: "circle", label: "Circle / Kreis" },
-                    { value: "diamond", label: "Diamond / Raute" },
-                  ],
-                },
-              },
+              name: "energy_total_entity",
+              selector: { entity: { domain: ["sensor", "input_number"] } },
             },
+            { name: "color", selector: { text: {} } },
           ],
         },
         {
@@ -78,19 +81,11 @@ export class PvForecastQualityCard extends LitElement {
           schema: [
             { name: "name", selector: { text: {} } },
             { name: "entity", selector: { entity: { domain: "sensor" } } },
-            { name: "color", selector: { text: {} } },
             {
-              name: "marker",
-              selector: {
-                select: {
-                  mode: "dropdown",
-                  options: [
-                    { value: "circle", label: "Circle / Kreis" },
-                    { value: "diamond", label: "Diamond / Raute" },
-                  ],
-                },
-              },
+              name: "energy_total_entity",
+              selector: { entity: { domain: ["sensor", "input_number"] } },
             },
+            { name: "color", selector: { text: {} } },
           ],
         },
         {
@@ -108,6 +103,14 @@ export class PvForecastQualityCard extends LitElement {
               selector: { entity: { domain: ["input_text", "sensor"] } },
             },
             {
+              name: "actual_energy_entity",
+              selector: { entity: { domain: ["sensor", "input_number"] } },
+            },
+            {
+              name: "selection_entity",
+              selector: { entity: { domain: ["input_select", "select"] } },
+            },
+            {
               name: "minimum_intervals",
               selector: { number: { min: 1, max: 96, mode: "box", step: 1 } },
             },
@@ -120,10 +123,12 @@ export class PvForecastQualityCard extends LitElement {
           title: "Title / Titel",
           name: "Name",
           entity: "Metric entity / Kennzahl-Entität",
+          energy_total_entity: "Forecast energy / Prognoseenergie",
           color: "Color / Farbe",
-          marker: "Marker",
           interval_count_entity: "Interval counter / Intervallzähler",
           snapshot_entity: "Snapshot status entity / Snapshot-Status",
+          actual_energy_entity: "Actual energy / Ist-Energie",
+          selection_entity: "Forecast issue selector / Prognosestand-Auswahl",
           minimum_intervals: "Minimum intervals / Mindestintervalle",
         };
         return labels[schema.name ?? ""] ?? schema.name ?? "";
@@ -161,6 +166,11 @@ export class PvForecastQualityCard extends LitElement {
       ...config,
       provider_1: { ...config.provider_1 },
       provider_2: config.provider_2 ? { ...config.provider_2 } : undefined,
+      contexts: config.contexts?.map((context) => ({
+        ...context,
+        provider_1: context.provider_1 ? { ...context.provider_1 } : undefined,
+        provider_2: context.provider_2 ? { ...context.provider_2 } : undefined,
+      })),
     };
   }
 
@@ -179,33 +189,42 @@ export class PvForecastQualityCard extends LitElement {
     if (!this._config) return html``;
 
     const metric = this._config.metric;
+    const active = this._activeConfig();
     const language = this.hass?.locale?.language ?? navigator.language;
     const copy = getCopy(language, metric);
     const locale = language || "en";
-    const readings = this._readings(metric, copy.providerOne, copy.providerTwo);
+    const readings = this._readings(
+      metric,
+      copy.providerOne,
+      copy.providerTwo,
+      active,
+      !active.evaluable,
+    );
     const values = readings.map((reading) => reading.value);
     const scale = metric === "power" ? powerScale(values) : energyScale(values);
     const title =
       this._config.title ?? (metric === "power" ? copy.powerTitle : copy.energyTitle);
-    const intervalCount = readNumericEntity(this.hass, this._config.interval_count_entity);
+    const intervalCount = readNumericEntity(this.hass, active.interval_count_entity);
     const minimumIntervals = Math.max(1, Math.round(this._config.minimum_intervals ?? 8));
-    const snapshotValue = this._config.snapshot_entity
-      ? this.hass?.states[this._config.snapshot_entity]?.state
+    const snapshotValue = active.snapshot_entity
+      ? this.hass?.states[active.snapshot_entity]?.state
       : undefined;
     const snapshot = parseSnapshot(snapshotValue);
-    const snapshotStale = isSnapshotStale(snapshot, this._todayKey());
+    const snapshotStale = active.evaluable && isSnapshotStale(snapshot, this._todayKey());
     const noCompletedIntervals = intervalCount !== null && intervalCount <= 0;
     const preliminary =
       intervalCount !== null && intervalCount > 0 && intervalCount < minimumIntervals;
     const comparison =
-      snapshotStale || noCompletedIntervals
+      !active.evaluable || snapshotStale || noCompletedIntervals
         ? ({ kind: "unavailable" } as const)
         : compareReadings(metric, readings);
-    const unavailableReason = snapshotStale
-      ? copy.staleSnapshot
-      : noCompletedIntervals
-        ? copy.waitingIntervals
-        : undefined;
+    const unavailableReason = !active.evaluable
+      ? copy.liveUnavailable
+      : snapshotStale
+        ? copy.staleSnapshot
+        : noCompletedIntervals
+          ? copy.waitingIntervals
+          : undefined;
     const tooltipTitle =
       metric === "power" ? copy.powerTooltipTitle : copy.energyTooltipTitle;
     const tooltipBody = this._explanation(metric, readings[0]?.value ?? null, locale, copy);
@@ -235,11 +254,17 @@ export class PvForecastQualityCard extends LitElement {
           ${this._chart(metric, readings, scale, locale, copy)}
 
           <footer class="card-footer">
-            <span>${this._intervalStatus(intervalCount, minimumIntervals, copy)}</span>
+            ${active.evaluable
+              ? html`<span>${this._intervalStatus(intervalCount, minimumIntervals, copy)}</span>`
+              : nothing}
+            ${active.evaluable && active.label
+              ? html`<span class="footer-separator" aria-hidden="true">·</span>`
+              : nothing}
+            ${active.label ? html`<span>${active.label}</span>` : nothing}
             ${snapshotStale
               ? html`<span class="footer-separator" aria-hidden="true">·</span>
                   <span>${copy.staleSnapshot}</span>`
-              : snapshot.mode === "bootstrap" || snapshot.mode === "day_ahead"
+              : !active.label && (snapshot.mode === "bootstrap" || snapshot.mode === "day_ahead")
               ? html`<span class="footer-separator" aria-hidden="true">·</span>
                   <span>${snapshot.mode === "bootstrap" ? copy.testRun : copy.dayAhead}</span>`
               : nothing}
@@ -253,25 +278,30 @@ export class PvForecastQualityCard extends LitElement {
     metric: ForecastQualityMetric,
     primaryFallback: string,
     comparisonFallback: string,
+    active: ActiveQualityConfig,
+    disabled: boolean,
   ): ProviderReading[] {
-    if (!this._config) return [];
     const result = [
       this._reading(
         metric,
-        this._config.provider_1,
+        active.provider_1,
         primaryFallback,
         DEFAULT_PRIMARY_COLOR,
         "circle",
+        active.actual_energy_entity,
+        disabled,
       ),
     ];
-    if (this._config.provider_2?.entity) {
+    if (active.provider_2?.entity) {
       result.push(
         this._reading(
           metric,
-          this._config.provider_2,
+          active.provider_2,
           comparisonFallback,
           DEFAULT_COMPARISON_COLOR,
           "circle",
+          active.actual_energy_entity,
+          disabled,
         ),
       );
     }
@@ -283,7 +313,9 @@ export class PvForecastQualityCard extends LitElement {
     config: ProviderConfig,
     fallbackName: string,
     fallbackColor: string,
-    fallbackMarker: "circle" | "diamond",
+    fallbackMarker: "circle",
+    actualEnergyEntity: string | undefined,
+    disabled: boolean,
   ): ProviderReading {
     const entity = config.entity;
     const stateObj = entity ? this.hass?.states[entity] : undefined;
@@ -297,7 +329,7 @@ export class PvForecastQualityCard extends LitElement {
         : undefined;
     const attributeName = stateObj?.attributes.friendly_name;
 
-    const numericValue = readNumericEntity(this.hass, entity);
+    const numericValue = disabled ? null : readNumericEntity(this.hass, entity);
 
     return {
       name:
@@ -306,8 +338,10 @@ export class PvForecastQualityCard extends LitElement {
         (typeof attributeName === "string" ? attributeName : fallbackName),
       entity,
       color: safeColor(config.color, fallbackColor),
-      marker: config.marker ?? fallbackMarker,
+      marker: fallbackMarker,
       value: metric === "power" && numericValue !== null && numericValue < 0 ? null : numericValue,
+      energy: disabled ? null : readNumericEntity(this.hass, config.energy_total_entity),
+      actualEnergy: disabled ? null : readNumericEntity(this.hass, actualEnergyEntity),
     };
   }
 
@@ -323,6 +357,12 @@ export class PvForecastQualityCard extends LitElement {
       return html`<section class="verdict unavailable">
         <strong class="verdict-value verdict-empty">${copy.unavailable}</strong>
         <span class="verdict-support">${unavailableReason ?? copy.unavailableHint}</span>
+      </section>`;
+    }
+
+    if (preliminary) {
+      return html`<section class="verdict">
+        <strong class="verdict-value verdict-empty">${copy.earlyVerdict}</strong>
       </section>`;
     }
 
@@ -380,7 +420,7 @@ export class PvForecastQualityCard extends LitElement {
       .join(", ");
 
     return html`<div class=${metric === "power" ? "chart power-chart" : "chart energy-chart"} role="img" aria-label=${aria}>
-      ${readings.map((reading) => this._chartRow(metric, reading, scale, locale))}
+      ${readings.map((reading) => this._chartRow(metric, reading, scale, locale, copy))}
       <div class="axis" aria-hidden="true">
         ${metric === "power"
           ? html`<span>${copy.idealZero}</span><span>${this._formatAxis(scale, locale)} kW</span>`
@@ -394,6 +434,7 @@ export class PvForecastQualityCard extends LitElement {
     reading: ProviderReading,
     scale: number,
     locale: string,
+    copy: ReturnType<typeof getCopy>,
   ): TemplateResult {
     const position = normalizedPosition(metric, reading.value, scale);
     const segmentLeft = metric === "energy" ? Math.min(50, position) : 0;
@@ -415,6 +456,13 @@ export class PvForecastQualityCard extends LitElement {
           reading.value === null ? "–" : this._formatValue(metric, reading.value, locale)
         }</strong>
       </div>
+      ${metric === "energy" && (reading.energy != null || reading.actualEnergy != null)
+        ? html`<div class="energy-values">
+            <span>${copy.forecastEnergy} ${this._formatEnergy(reading.energy, locale)}</span>
+            <span aria-hidden="true">·</span>
+            <span>${copy.actualEnergy} ${this._formatEnergy(reading.actualEnergy, locale)}</span>
+          </div>`
+        : nothing}
       <div class="track" aria-hidden="true">
         ${metric === "energy" ? html`<i class="zero-line"></i>` : nothing}
         <i class="segment"></i>
@@ -455,6 +503,39 @@ export class PvForecastQualityCard extends LitElement {
       minimumFractionDigits: value % 1 === 0 ? 0 : 1,
       maximumFractionDigits: 1,
     }).format(value);
+  }
+
+  private _formatEnergy(value: number | null | undefined, locale: string): string {
+    if (value === null || value === undefined || !Number.isFinite(value)) return "–";
+    return `${new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)} kWh`;
+  }
+
+  private _activeConfig(): ActiveQualityConfig {
+    if (!this._config) {
+      return { provider_1: {}, evaluable: false };
+    }
+    const selected = this._config.selection_entity
+      ? this.hass?.states[this._config.selection_entity]?.state
+      : undefined;
+    const context = this._config.contexts?.find((item) => item.value === selected);
+    return {
+      provider_1: { ...this._config.provider_1, ...context?.provider_1 },
+      provider_2:
+        this._config.provider_2 || context?.provider_2
+          ? { ...this._config.provider_2, ...context?.provider_2 }
+          : undefined,
+      interval_count_entity:
+        context?.interval_count_entity ?? this._config.interval_count_entity,
+      snapshot_entity: context?.snapshot_entity ?? this._config.snapshot_entity,
+      actual_energy_entity:
+        context?.actual_energy_entity ?? this._config.actual_energy_entity,
+      label: context?.label,
+      value: context?.value,
+      evaluable: context?.evaluable !== false,
+    };
   }
 
   private _energyDirection(value: number, copy: ReturnType<typeof getCopy>): string {
@@ -715,6 +796,17 @@ export class PvForecastQualityCard extends LitElement {
       line-height: 1.3;
     }
 
+    .energy-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: -2px;
+      color: var(--secondary-text-color);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.35;
+    }
+
     .row-label strong {
       flex: 0 0 auto;
       font-weight: 600;
@@ -741,11 +833,6 @@ export class PvForecastQualityCard extends LitElement {
 
     .series-marker.circle {
       border-radius: 50%;
-    }
-
-    .series-marker.diamond {
-      border-radius: 2px;
-      transform: rotate(45deg);
     }
 
     .track {
@@ -794,11 +881,6 @@ export class PvForecastQualityCard extends LitElement {
 
     .value-marker.circle {
       border-radius: 50%;
-    }
-
-    .value-marker.diamond {
-      border-radius: 3px;
-      transform: translate(-50%, -50%) rotate(45deg);
     }
 
     .axis {

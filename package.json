@@ -1,6 +1,6 @@
 {
   "name": "pv-forecast-quality-card",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Home Assistant Sections cards for PV forecast quality and daily power profiles.",
   "type": "module",
   "private": true,

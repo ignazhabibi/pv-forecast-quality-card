@@ -4,8 +4,9 @@ A Home Assistant custom-card bundle for comparing PV forecasts with actual produ
 
 ![Two independent PV forecast quality cards](docs/preview.svg)
 
-The bundle registers three card types:
+The bundle registers four card types:
 
+- `custom:pv-forecast-lab-card` for a shared forecast-issue timeline
 - `custom:pv-forecast-quality-card` for understandable quality metrics
 - `custom:pv-forecast-day-card` for today's actual power and one or two forecast profiles
 - `custom:pv-forecast-history-card` for the last 7–90 complete day-ahead days
@@ -21,7 +22,32 @@ The compact card surface shows only the verdict, provider values, and evaluation
 
 ## Important data contract
 
-This is a frontend card. It does **not** freeze forecasts or calculate historical day-ahead quality on its own. Supply entities that already represent a methodologically valid comparison. If a forecast integration updates during the day, freeze the day-ahead forecast in the Home Assistant backend before calculating the metrics.
+This is a frontend card. It does **not** freeze forecasts or calculate historical quality on its own. Supply entities that already represent a methodologically valid comparison. If a forecast integration updates during the day, freeze every issue you want to evaluate (for example day-ahead and 07:00) in the Home Assistant backend and calculate each issue independently.
+
+## Forecast lab
+
+One shared selector can switch every card between fixed forecast issues and the current live forecast:
+
+```yaml
+type: custom:pv-forecast-lab-card
+title: PV-Prognose-Labor
+entity: input_select.pv_vergleich_prognosestand
+options:
+  - value: Day-ahead
+    label: Vorabend
+    caption: "23:55"
+  - value: "07:00"
+    label: Morgen
+    caption: "07:00"
+  - value: Aktuell
+    label: Aktuell
+    caption: live
+grid_options:
+  columns: full
+  rows: auto
+```
+
+Add the same `selection_entity` and matching `contexts` to the quality, day and history cards. Fixed issues can be evaluated; `evaluable: false` deliberately withholds a verdict for the continuously changing live forecast.
 
 ## Installation with HACS
 
@@ -45,6 +71,8 @@ The day card loads the actual entity's recorder history, averages it into five-m
 ```yaml
 type: custom:pv-forecast-day-card
 title: PV-Leistung heute
+selection_entity: input_select.pv_vergleich_prognosestand
+actual_energy_entity: input_number.pv_vergleich_ist_energie
 actual:
   name: Ist-Leistung
   entity: sensor.wechselrichter_solar_power
@@ -66,12 +94,35 @@ forecast_2:
   attribute: forecast
   datetime_key: datetime
   value_key: watts
+snapshot_sets:
+  - value: Day-ahead
+    label: Vorabend · 23:55
+    snapshot_entity: input_text.pv_vergleich_snapshot_aktiv
+    forecast_1_entities:
+      - input_text.pv_vergleich_solcast_aktiv_1
+      - input_text.pv_vergleich_solcast_aktiv_2
+    forecast_2_entities:
+      - input_text.pv_vergleich_helios_aktiv_1
+      - input_text.pv_vergleich_helios_aktiv_2
+    actual_energy_entity: input_number.pv_vergleich_ist_energie
+    actual_energy_label: Ist bisher
+  - value: "07:00"
+    label: Morgen · 07:00
+    snapshot_entity: input_text.pv_vergleich_snapshot_0700
+    forecast_1_entities:
+      - input_text.pv_vergleich_solcast_0700_1
+      - input_text.pv_vergleich_solcast_0700_2
+    forecast_2_entities:
+      - input_text.pv_vergleich_helios_0700_1
+      - input_text.pv_vergleich_helios_0700_2
+    actual_energy_entity: input_number.pv_vergleich_ist_energie_0700
+    actual_energy_label: Ist seit 07:00
 grid_options:
   columns: full
   rows: auto
 ```
 
-Omit `forecast_2` for a single-provider day profile. The chart shows the integrations' currently reported forecasts; the quality cards remain the methodologically correct place to evaluate the frozen day-ahead snapshots.
+Omit `forecast_2` for a single-provider day profile. For configured snapshot sets, the chart decodes the frozen 15-minute values instead of reading the integrations' current attributes. The compact energy row shows actual energy so far plus each provider's full-day forecast in kWh.
 
 ## Long-term ECharts comparison
 
@@ -94,6 +145,21 @@ provider_2:
   color: "#7C4DFF"
   mae_entity: sensor.pv_vergleich_helios_mae_tag
   energy_entity: sensor.pv_vergleich_helios_energieabweichung_prozent_tag
+selection_entity: input_select.pv_vergleich_prognosestand
+contexts:
+  - value: Day-ahead
+    label: Vorabend
+  - value: "07:00"
+    label: Morgen · 07:00
+    provider_1:
+      mae_entity: sensor.pv_vergleich_solcast_mae_tag_0700
+      energy_entity: sensor.pv_vergleich_solcast_energieabweichung_prozent_tag_0700
+    provider_2:
+      mae_entity: sensor.pv_vergleich_helios_mae_tag_0700
+      energy_entity: sensor.pv_vergleich_helios_energieabweichung_prozent_tag_0700
+  - value: Aktuell
+    label: Aktuell
+    evaluable: false
 grid_options:
   columns: full
   rows: auto
@@ -109,15 +175,18 @@ metric: power
 provider_1:
   name: Solcast
   entity: sensor.solcast_mae_today
+  energy_total_entity: input_number.pv_vergleich_solcast_prognoseenergie
   color: "#22C55E"
   marker: circle
 provider_2:
   name: Helios Forecast
   entity: sensor.helios_mae_today
+  energy_total_entity: input_number.pv_vergleich_helios_prognoseenergie
   color: "#7C4DFF"
   marker: circle
 interval_count_entity: counter.pv_forecast_intervals
 snapshot_entity: input_text.pv_forecast_snapshot_status
+actual_energy_entity: input_number.pv_vergleich_ist_energie
 minimum_intervals: 8
 grid_options:
   columns: 6
@@ -167,7 +236,7 @@ The card expects a mean absolute error (MAE) entity in kW. For each completed in
 
 ### Yield deviation
 
-The card expects a signed percentage. Positive means the forecast predicted too much energy, negative means too little. `0%` is exact, so the winning provider is the one with the smallest absolute distance from zero.
+The card expects a signed percentage. Positive means the forecast predicted too much energy, negative means too little. `0%` is exact, so the winning provider is the one with the smallest absolute distance from zero. When `energy_total_entity` and `actual_energy_entity` are configured, every percentage is accompanied by absolute forecast and actual kWh values.
 
 ## Sections sizing
 
@@ -183,7 +252,7 @@ The day and history cards report 12 columns with a six-column minimum and also r
 
 ## Evaluation context
 
-- `interval_count_entity` supplies the number of completed intervals. Below `minimum_intervals`, the verdict is explicitly marked as an early trend; at zero intervals it is withheld.
+- `interval_count_entity` supplies the number of completed intervals. Below `minimum_intervals`, the winner is withheld as too early for a verdict; at zero intervals no evaluation is shown.
 - `snapshot_entity` may use `YYYY-MM-DD|timestamp|bootstrap` or `YYYY-MM-DD|timestamp|day_ahead`. If its date is not today, the verdict is withheld rather than presenting stale data as today's result.
 - `minimum_intervals` defaults to `8`. It controls the confidence wording, not the backend metric calculation.
 
